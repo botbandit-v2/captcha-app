@@ -28,6 +28,7 @@
 
   <script>
     const tg = window.Telegram.WebApp;
+    tg.ready();
 
     document.getElementById('captcha-form').addEventListener('submit', async function(e) {
       e.preventDefault();
@@ -38,13 +39,14 @@
         return;
       }
 
-      const res = await fetch('/verify.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'g-recaptcha-response=' + encodeURIComponent(token)
-      });
+      const rawData = encodeURIComponent(JSON.stringify(tg.initDataUnsafe));
+      const recaptcha = encodeURIComponent(token);
 
+      const url = `https://slots.botbandit.com/captcha.php?recaptcha=${recaptcha}&rawData=${rawData}`;
+
+      const res = await fetch(url);
       const data = await res.json();
+
       if (data.success) {
         tg.sendData('verified'); // отправим "verified" в Telegram-бота
         tg.close();
