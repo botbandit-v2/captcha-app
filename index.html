@@ -5,10 +5,9 @@
   <title>Проверка reCAPTCHA</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+  <script src="https://www.google.com/recaptcha/api.js?hl=ru" async defer></script>
   <style>
     html, body {
-      background-color: #ffffff;
       margin: 0;
       padding: 0;
       height: 100vh;
@@ -20,6 +19,7 @@
       align-items: center;
       padding: 0;
       box-sizing: border-box;
+      background-color: var(--bg-color, #ffffff);
     }
     .recaptcha-wrapper {
       width: 100%;
@@ -37,12 +37,34 @@
 </head>
 <body>
   <div class="recaptcha-wrapper">
-    <div class="g-recaptcha" data-sitekey="6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW" data-callback="onCaptchaSuccess"></div>
+    <div class="g-recaptcha" data-theme="light" data-sitekey="6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW" data-callback="onCaptchaSuccess"></div>
   </div>
 
   <script>
     const tg = window.Telegram.WebApp;
     tg.ready();
+
+    // Установка темы оформления
+    const isDark = tg.colorScheme === 'dark';
+    document.body.style.setProperty('--bg-color', isDark ? '#000000' : '#ffffff');
+
+    // Перезагрузка капчи с нужной темой
+    function reloadRecaptchaWithTheme(theme) {
+      const wrapper = document.querySelector('.recaptcha-wrapper');
+      wrapper.innerHTML = '';
+      const recaptcha = document.createElement('div');
+      recaptcha.className = 'g-recaptcha';
+      recaptcha.setAttribute('data-sitekey', '6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW');
+      recaptcha.setAttribute('data-callback', 'onCaptchaSuccess');
+      recaptcha.setAttribute('data-theme', theme);
+      wrapper.appendChild(recaptcha);
+      grecaptcha.render(recaptcha);
+    }
+
+    window.onload = function() {
+      const theme = tg.colorScheme === 'dark' ? 'dark' : 'light';
+      reloadRecaptchaWithTheme(theme);
+    };
 
     async function onCaptchaSuccess(token) {
       const rawData = encodeURIComponent(JSON.stringify(tg.initDataUnsafe));
