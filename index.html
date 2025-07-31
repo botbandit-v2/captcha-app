@@ -11,26 +11,34 @@
       background-color: #f9f9f9;
       margin: 0;
       padding: 0;
-      height: auto;
-      min-height: 100vh;
+      height: 100vh;
+      width: 100vw;
     }
     body {
       display: flex;
       justify-content: center;
       align-items: center;
-      padding: 0 16px;
+      padding: 0;
       box-sizing: border-box;
     }
-    .g-recaptcha {
+    .recaptcha-wrapper {
       width: 100%;
-      max-width: 320px;
-      transform: scale(1.15);
+      max-width: 360px;
+      padding: 0 16px;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: center;
+    }
+    .g-recaptcha {
+      transform: scale(1.2);
       transform-origin: center;
     }
   </style>
 </head>
 <body>
-  <div class="g-recaptcha" data-sitekey="6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW" data-callback="onCaptchaSuccess"></div>
+  <div class="recaptcha-wrapper">
+    <div class="g-recaptcha" data-sitekey="6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW" data-callback="onCaptchaSuccess"></div>
+  </div>
 
   <script>
     const tg = window.Telegram.WebApp;
