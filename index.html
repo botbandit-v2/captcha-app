@@ -3,20 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <title>Проверка reCAPTCHA</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://www.google.com/recaptcha/api.js" async defer></script>
   <style>
-    body {
+    html, body {
       background-color: #f9f9f9;
       margin: 0;
       padding: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+    body {
       display: flex;
       justify-content: center;
       align-items: center;
-      height: 100vh;
     }
     .g-recaptcha {
-      transform: scale(1.2);
+      width: 100vw;
+      display: flex;
+      justify-content: center;
+      transform: scale(1.3);
       transform-origin: center;
     }
   </style>
@@ -26,6 +33,7 @@
 
   <script>
     const tg = window.Telegram.WebApp;
+    tg.expand();
     tg.ready();
 
     async function onCaptchaSuccess(token) {
