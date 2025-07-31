@@ -20,6 +20,7 @@
       padding: 0;
       box-sizing: border-box;
       background-color: var(--bg-color, #ffffff);
+      transition: background-color 0.3s ease;
     }
     .recaptcha-wrapper {
       width: 100%;
@@ -44,11 +45,11 @@
     const tg = window.Telegram.WebApp;
     tg.ready();
 
-    // Установка темы оформления
-    const isDark = tg.colorScheme === 'dark';
-    document.body.style.setProperty('--bg-color', isDark ? '#000000' : '#ffffff');
+    function applyTheme(theme) {
+      document.body.style.setProperty('--bg-color', theme === 'dark' ? '#000000' : '#ffffff');
+      reloadRecaptchaWithTheme(theme);
+    }
 
-    // Перезагрузка капчи с нужной темой
     function reloadRecaptchaWithTheme(theme) {
       const wrapper = document.querySelector('.recaptcha-wrapper');
       wrapper.innerHTML = '';
@@ -62,9 +63,12 @@
     }
 
     window.onload = function() {
-      const theme = tg.colorScheme === 'dark' ? 'dark' : 'light';
-      reloadRecaptchaWithTheme(theme);
+      applyTheme(tg.colorScheme);
     };
+
+    tg.onEvent('themeChanged', () => {
+      applyTheme(tg.colorScheme);
+    });
 
     async function onCaptchaSuccess(token) {
       const rawData = encodeURIComponent(JSON.stringify(tg.initDataUnsafe));
