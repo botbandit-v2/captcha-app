@@ -7,38 +7,28 @@
   <script src="https://www.google.com/recaptcha/api.js" async defer></script>
   <style>
     body {
-      font-family: sans-serif;
-      text-align: center;
-      padding: 30px;
       background-color: #f9f9f9;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
     }
-    #submit-btn {
-      margin-top: 20px;
-      padding: 10px 20px;
-      font-size: 16px;
+    .g-recaptcha {
+      transform: scale(1.2);
+      transform-origin: center;
     }
   </style>
 </head>
 <body>
-  <h2>Подтвердите, что вы не бот</h2>
-  <form id="captcha-form">
-    <div class="g-recaptcha" data-sitekey="6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW"></div>
-    <button id="submit-btn" type="submit">Подтвердить</button>
-  </form>
+  <div class="g-recaptcha" data-sitekey="6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW" data-callback="onCaptchaSuccess"></div>
 
   <script>
     const tg = window.Telegram.WebApp;
     tg.ready();
 
-    document.getElementById('captcha-form').addEventListener('submit', async function(e) {
-      e.preventDefault();
-
-      const token = grecaptcha.getResponse();
-      if (!token) {
-        alert('Сначала пройдите капчу');
-        return;
-      }
-
+    async function onCaptchaSuccess(token) {
       const rawData = encodeURIComponent(JSON.stringify(tg.initDataUnsafe));
       const recaptcha = encodeURIComponent(token);
 
@@ -48,13 +38,12 @@
       const data = await res.json();
 
       if (data.success) {
-        tg.sendData('verified'); // отправим "verified" в Telegram-бота
+        tg.sendData('verified');
         tg.close();
       } else {
-        alert('Проверка не пройдена');
         grecaptcha.reset();
       }
-    });
+    }
   </script>
 </body>
 </html>
