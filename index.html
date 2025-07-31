@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Проверка reCAPTCHA</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 30px;
+      background-color: #f9f9f9;
+    }
+    #submit-btn {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Подтвердите, что вы не бот</h2>
+  <form id="captcha-form">
+    <div class="g-recaptcha" data-sitekey="6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW"></div>
+    <button id="submit-btn" type="submit">Подтвердить</button>
+  </form>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+
+    document.getElementById('captcha-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const token = grecaptcha.getResponse();
+      if (!token) {
+        alert('Сначала пройдите капчу');
+        return;
+      }
+
+      const res = await fetch('/verify.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'g-recaptcha-response=' + encodeURIComponent(token)
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        tg.sendData('verified'); // отправим "verified" в Telegram-бота
+        tg.close();
+      } else {
+        alert('Проверка не пройдена');
+        grecaptcha.reset();
+      }
+    });
+  </script>
+</body>
+</html>
