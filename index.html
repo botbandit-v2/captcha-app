@@ -5,6 +5,7 @@
   <title>Проверка reCAPTCHA</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
   <script src="https://www.google.com/recaptcha/api.js?hl=ru" async defer></script>
   <style>
     html, body {
@@ -42,8 +43,44 @@
   </div>
 
   <script>
-    const tg = window.Telegram.WebApp;
-    tg.ready();
+    let platform = 'unknown';
+    let rawData = '';
+    let theme = 'light';
+
+    const tg = window.Telegram?.WebApp;
+    const isTelegram = !!tg?.initDataUnsafe;
+
+    if (isTelegram) {
+      platform = 'tg';
+      rawData = encodeURIComponent(JSON.stringify(tg.initDataUnsafe));
+      theme = tg.colorScheme;
+      tg.ready();
+
+      tg.onEvent('themeChanged', () => {
+        applyTheme(tg.colorScheme);
+      });
+    } else {
+      platform = 'vk';
+      vkBridge.send('VKWebAppInit').then(() => {
+        return Promise.all([
+          vkBridge.send('VKWebAppGetUserInfo'),
+          vkBridge.send('VKWebAppGetConfig')
+        ]);
+      }).then(([userInfo, config]) => {
+        rawData = encodeURIComponent(JSON.stringify(userInfo));
+        theme = config.scheme?.includes('dark') ? 'dark' : 'light';
+        applyTheme(theme);
+
+        // Подписка на смену темы в VK
+        vkBridge.subscribe(e => {
+          if (e.detail.type === 'VKWebAppUpdateConfig') {
+            const newScheme = e.detail.data.scheme || 'bright_light';
+            const newTheme = newScheme.includes('dark') ? 'dark' : 'light';
+            applyTheme(newTheme);
+          }
+        });
+      });
+    }
 
     function applyTheme(theme) {
       document.body.style.setProperty('--bg-color', theme === 'dark' ? '#000000' : '#ffffff');
@@ -62,26 +99,24 @@
       grecaptcha.render(recaptcha);
     }
 
-    window.onload = function() {
-      applyTheme(tg.colorScheme);
+    window.onload = function () {
+      applyTheme(theme);
     };
 
-    tg.onEvent('themeChanged', () => {
-      applyTheme(tg.colorScheme);
-    });
-
     async function onCaptchaSuccess(token) {
-      const rawData = encodeURIComponent(JSON.stringify(tg.initDataUnsafe));
       const recaptcha = encodeURIComponent(token);
-
-      const url = `https://slots.botbandit.com/captcha.php?recaptcha=${recaptcha}&rawData=${rawData}`;
+      const url = `https://slots.botbandit.com/captcha.php?recaptcha=${recaptcha}&rawData=${rawData}&platform=${platform}`;
 
       const res = await fetch(url);
       const data = await res.json();
 
       if (data.success) {
-        tg.sendData('verified');
-        tg.close();
+        if (platform === 'tg') {
+          tg.sendData('verified');
+          tg.close();
+        } else if (platform === 'vk') {
+          alert('Проверка пройдена');
+        }
       } else {
         grecaptcha.reset();
       }
