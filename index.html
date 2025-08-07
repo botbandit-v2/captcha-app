@@ -62,18 +62,16 @@
     } else {
       platform = 'vk';
 
-      vkBridge.send('VKWebAppInit')
-        .then(() => {
+      (async () => {
+        try {
+          await vkBridge.send('VKWebAppInit');
           console.log('[VK] Init success');
-          return Promise.all([
-            vkBridge.send('VKWebAppGetUserInfo'),
-            vkBridge.send('VKWebAppGetConfig')
-          ]);
-        })
-        .then(([userInfo, config]) => {
-          console.log('[VK] User info:', userInfo);
-          console.log('[VK] Config:', config);
-          rawData = encodeURIComponent(JSON.stringify(userInfo));
+
+          const launchParams = await vkBridge.send('VKWebAppGetLaunchParams');
+          rawData = encodeURIComponent(JSON.stringify(launchParams));
+          console.log('[VK] Launch params:', launchParams);
+
+          const config = await vkBridge.send('VKWebAppGetConfig');
           theme = config.scheme?.includes('dark') ? 'dark' : 'light';
           applyTheme(theme);
 
@@ -84,11 +82,12 @@
               applyTheme(newTheme);
             }
           });
-        })
-        .catch(err => {
+        } catch (err) {
           console.error('[VK] Ошибка инициализации:', err);
-          alert('VK Mini App не смог загрузиться. Попробуй открыть через VK.');
-        });
+          document.body.innerHTML += '<pre style="color: red">VK init failed:\n' + err.toString() + '</pre>';
+          alert('VK Mini App не смог загрузиться. Проверь подключение и запусти через VK.');
+        }
+      })();
     }
 
     function applyTheme(theme) {
