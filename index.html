@@ -53,7 +53,7 @@
 
     function insertTelegramCaptcha() {
       const script = document.createElement('script');
-      script.src = 'https://www.google.com/recaptcha/api.js';
+      script.src = 'https://www.google.com/recaptcha/api.js?render=explicit';
       script.async = true;
       script.defer = true;
       document.head.appendChild(script);
@@ -62,7 +62,8 @@
       container.innerHTML = `
         <div class="g-recaptcha" 
              data-sitekey="6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW" 
-             data-callback="onCaptchaSuccess">
+             data-callback="onCaptchaSuccess" 
+             data-theme="${theme}">
         </div>`;
     }
 
@@ -89,7 +90,12 @@
       theme = tg.colorScheme;
       tg.ready();
 
-      tg.onEvent('themeChanged', () => applyTheme(tg.colorScheme));
+      tg.onEvent('themeChanged', () => {
+        theme = tg.colorScheme;
+        applyTheme(theme);
+        insertTelegramCaptcha();
+      });
+
       applyTheme(theme);
       insertTelegramCaptcha();
 
@@ -110,7 +116,9 @@
             if (e.detail.type === 'VKWebAppUpdateConfig') {
               const newScheme = e.detail.data.scheme || 'bright_light';
               const newTheme = newScheme.includes('dark') ? 'dark' : 'light';
-              applyTheme(newTheme);
+              theme = newTheme;
+              applyTheme(theme);
+              insertVKCaptcha();
             }
           });
 
