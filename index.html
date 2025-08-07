@@ -144,7 +144,9 @@
       if (data.success) {
         if (platform === 'tg') {
           window.Telegram.WebApp.sendData('verified');
-          window.Telegram.WebApp.close();
+          setTimeout(() => {
+            window.Telegram.WebApp.close();
+          }, 100); // минимальная задержка
         } else if (platform === 'vk') {
           vkBridge.send('VKWebAppClose', { status: 'success' });
         }
