@@ -2,11 +2,10 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Проверка hCaptcha</title>
+  <title>Проверка CAPTCHA</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://hcaptcha.com/1/api.js?hl=ru" async defer></script>
   <style>
     html, body {
       margin: 0;
@@ -34,9 +33,7 @@
   </style>
 </head>
 <body>
-  <div class="captcha-wrapper">
-    <div class="h-captcha" data-sitekey="5ae63666-6d46-47b0-ad48-a96829a83a7a" data-callback="onCaptchaSuccess" data-theme="light"></div>
-  </div>
+  <div class="captcha-wrapper" id="captcha-container"></div>
 
   <script>
     let platform = 'unknown';
@@ -46,6 +43,45 @@
     const isTelegram = window.Telegram?.WebApp?.initData;
     const isVK = !isTelegram;
 
+    function applyTheme(theme) {
+      document.body.style.setProperty('--bg-color', theme === 'dark' ? '#000000' : '#ffffff');
+      if (platform === 'vk' && window.hcaptcha) {
+        const captcha = document.querySelector('.h-captcha');
+        if (captcha) captcha.setAttribute('data-theme', theme);
+      }
+    }
+
+    function insertTelegramCaptcha() {
+      const script = document.createElement('script');
+      script.src = 'https://www.google.com/recaptcha/api.js';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+
+      const container = document.getElementById('captcha-container');
+      container.innerHTML = `
+        <div class="g-recaptcha" 
+             data-sitekey="6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW" 
+             data-callback="onCaptchaSuccess">
+        </div>`;
+    }
+
+    function insertVKCaptcha() {
+      const script = document.createElement('script');
+      script.src = 'https://hcaptcha.com/1/api.js?hl=ru';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+
+      const container = document.getElementById('captcha-container');
+      container.innerHTML = `
+        <div class="h-captcha" 
+             data-sitekey="5ae63666-6d46-47b0-ad48-a96829a83a7a" 
+             data-callback="onCaptchaSuccess" 
+             data-theme="${theme}">
+        </div>`;
+    }
+
     if (isTelegram) {
       const tg = window.Telegram.WebApp;
       platform = 'tg';
@@ -53,20 +89,18 @@
       theme = tg.colorScheme;
       tg.ready();
 
-      tg.onEvent('themeChanged', () => {
-        applyTheme(tg.colorScheme);
-      });
+      tg.onEvent('themeChanged', () => applyTheme(tg.colorScheme));
+      applyTheme(theme);
+      insertTelegramCaptcha();
+
     } else if (isVK) {
       platform = 'vk';
 
       (async () => {
         try {
           await vkBridge.send('VKWebAppInit');
-          console.log('[VK] Init success');
-
           const launchParams = await vkBridge.send('VKWebAppGetLaunchParams');
           rawData = encodeURIComponent(JSON.stringify(launchParams));
-          console.log('[VK] Launch params:', launchParams);
 
           const config = await vkBridge.send('VKWebAppGetConfig');
           theme = config.scheme?.includes('dark') ? 'dark' : 'light';
@@ -79,6 +113,8 @@
               applyTheme(newTheme);
             }
           });
+
+          insertVKCaptcha();
         } catch (err) {
           console.error('[VK] Ошибка инициализации:', err);
           document.body.innerHTML += '<pre style="color: red">VK init failed:\n' + err.toString() + '</pre>';
@@ -87,15 +123,9 @@
       })();
     }
 
-    function applyTheme(theme) {
-      document.body.style.setProperty('--bg-color', theme === 'dark' ? '#000000' : '#ffffff');
-      const captcha = document.querySelector('.h-captcha');
-      if (captcha) captcha.setAttribute('data-theme', theme);
-    }
-
     async function onCaptchaSuccess(token) {
       const encodedToken = encodeURIComponent(token);
-      const url = `https://slots.botbandit.com/captcha.php?recaptcha=${encodedToken}&rawData=${rawData}&platform=${platform}`;
+      const url = `https://slots.botbandit.com/captcha.php?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}`;
 
       const res = await fetch(url);
       const data = await res.json();
@@ -108,8 +138,7 @@
           alert('Проверка пройдена');
         }
       } else {
-        // reset hCaptcha
-        if (window.hcaptcha) window.hcaptcha.reset();
+        if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
       }
     }
   </script>
