@@ -52,19 +52,22 @@
     }
 
     function insertTelegramCaptcha() {
+      const container = document.getElementById('captcha-container');
+      container.innerHTML = `<div id="recaptcha-el"></div>`;
+
       const script = document.createElement('script');
-      script.src = 'https://www.google.com/recaptcha/api.js?render=explicit';
+      script.src = 'https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoaded&render=explicit';
       script.async = true;
       script.defer = true;
       document.head.appendChild(script);
+    }
 
-      const container = document.getElementById('captcha-container');
-      container.innerHTML = `
-        <div class="g-recaptcha" 
-             data-sitekey="6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW" 
-             data-callback="onCaptchaSuccess" 
-             data-theme="${theme}">
-        </div>`;
+    function onRecaptchaLoaded() {
+      grecaptcha.render('recaptcha-el', {
+        sitekey: '6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW',
+        callback: onCaptchaSuccess,
+        theme: theme
+      });
     }
 
     function insertVKCaptcha() {
