@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <title>Проверка reCAPTCHA</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://www.google.com/recaptcha/api.js?hl=ru" async defer></script>
   <style>
     html, body {
@@ -47,10 +47,11 @@
     let rawData = '';
     let theme = 'light';
 
-    const tg = window.Telegram?.WebApp;
-    const isTelegram = !!tg?.initDataUnsafe;
+    const isTelegram = window.Telegram?.WebApp?.initData;
+    const isVK = !isTelegram;
 
     if (isTelegram) {
+      const tg = window.Telegram.WebApp;
       platform = 'tg';
       rawData = encodeURIComponent(JSON.stringify(tg.initDataUnsafe));
       theme = tg.colorScheme;
@@ -59,7 +60,7 @@
       tg.onEvent('themeChanged', () => {
         applyTheme(tg.colorScheme);
       });
-    } else {
+    } else if (isVK) {
       platform = 'vk';
 
       (async () => {
@@ -120,8 +121,8 @@
 
       if (data.success) {
         if (platform === 'tg') {
-          tg.sendData('verified');
-          tg.close();
+          window.Telegram.WebApp.sendData('verified');
+          window.Telegram.WebApp.close();
         } else if (platform === 'vk') {
           alert('Проверка пройдена');
         }
