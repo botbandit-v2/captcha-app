@@ -39,6 +39,7 @@
     let platform = 'unknown';
     let rawData = '';
     let theme = 'light';
+    let vkCaptchaLoaded = false;
 
     const isTelegram = window.Telegram?.WebApp?.initData;
     const isVK = !isTelegram;
@@ -71,12 +72,6 @@
     }
 
     function insertVKCaptcha() {
-      const script = document.createElement('script');
-      script.src = 'https://hcaptcha.com/1/api.js?hl=ru';
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-
       const container = document.getElementById('captcha-container');
       container.innerHTML = `
         <div class="h-captcha" 
@@ -84,6 +79,20 @@
              data-callback="onCaptchaSuccess" 
              data-theme="${theme}">
         </div>`;
+
+      const script = document.createElement('script');
+      script.src = 'https://hcaptcha.com/1/api.js?hl=ru&onload=hcaptchaLoaded';
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+
+    function hcaptchaLoaded() {
+      if (vkCaptchaLoaded) return; // не загружать повторно
+      vkCaptchaLoaded = true;
+      if (window.hcaptcha) {
+        window.hcaptcha.render(document.querySelector('.h-captcha'));
+      }
     }
 
     if (isTelegram) {
