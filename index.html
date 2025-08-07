@@ -39,7 +39,6 @@
     let platform = 'unknown';
     let rawData = '';
     let theme = 'light';
-    let vkCaptchaLoaded = false;
 
     const isTelegram = window.Telegram?.WebApp?.initData;
     const isVK = !isTelegram;
@@ -55,6 +54,9 @@
     function insertTelegramCaptcha() {
       const container = document.getElementById('captcha-container');
       container.innerHTML = `<div id="recaptcha-el"></div>`;
+
+      const existingScript = document.querySelector('script[src*="recaptcha"]');
+      if (existingScript) existingScript.remove();
 
       const script = document.createElement('script');
       script.src = 'https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoaded&render=explicit';
@@ -80,6 +82,9 @@
              data-theme="${theme}">
         </div>`;
 
+      const existingScript = document.querySelector('script[src*="hcaptcha"]');
+      if (existingScript) existingScript.remove();
+
       const script = document.createElement('script');
       script.src = 'https://hcaptcha.com/1/api.js?hl=ru&onload=hcaptchaLoaded';
       script.async = true;
@@ -88,10 +93,9 @@
     }
 
     function hcaptchaLoaded() {
-      if (vkCaptchaLoaded) return; // не загружать повторно
-      vkCaptchaLoaded = true;
-      if (window.hcaptcha) {
-        window.hcaptcha.render(document.querySelector('.h-captcha'));
+      const container = document.querySelector('.h-captcha');
+      if (container && window.hcaptcha) {
+        window.hcaptcha.render(container);
       }
     }
 
@@ -155,7 +159,7 @@
           window.Telegram.WebApp.sendData('verified');
           setTimeout(() => {
             window.Telegram.WebApp.close();
-          }, 100); // минимальная задержка
+          }, 100);
         } else if (platform === 'vk') {
           vkBridge.send('VKWebAppClose', { status: 'success' });
         }
