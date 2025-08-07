@@ -2,11 +2,11 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Проверка reCAPTCHA</title>
+  <title>Проверка hCaptcha</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://www.google.com/recaptcha/api.js?hl=ru" async defer></script>
+  <script src="https://hcaptcha.com/1/api.js?hl=ru" async defer></script>
   <style>
     html, body {
       margin: 0;
@@ -23,7 +23,7 @@
       background-color: var(--bg-color, #ffffff);
       transition: background-color 0.3s ease;
     }
-    .recaptcha-wrapper {
+    .captcha-wrapper {
       width: 100%;
       max-width: 360px;
       padding: 0 16px;
@@ -31,15 +31,11 @@
       display: flex;
       justify-content: center;
     }
-    .g-recaptcha {
-      transform: scale(1.2);
-      transform-origin: center;
-    }
   </style>
 </head>
 <body>
-  <div class="recaptcha-wrapper">
-    <div class="g-recaptcha" data-theme="light" data-sitekey="6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW" data-callback="onCaptchaSuccess"></div>
+  <div class="captcha-wrapper">
+    <div class="h-captcha" data-sitekey="ES_28cad386fcb7474fbe12ff7e141f9d51" data-callback="onCaptchaSuccess" data-theme="light"></div>
   </div>
 
   <script>
@@ -93,28 +89,13 @@
 
     function applyTheme(theme) {
       document.body.style.setProperty('--bg-color', theme === 'dark' ? '#000000' : '#ffffff');
-      reloadRecaptchaWithTheme(theme);
+      const captcha = document.querySelector('.h-captcha');
+      if (captcha) captcha.setAttribute('data-theme', theme);
     }
-
-    function reloadRecaptchaWithTheme(theme) {
-      const wrapper = document.querySelector('.recaptcha-wrapper');
-      wrapper.innerHTML = '';
-      const recaptcha = document.createElement('div');
-      recaptcha.className = 'g-recaptcha';
-      recaptcha.setAttribute('data-sitekey', '6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW');
-      recaptcha.setAttribute('data-callback', 'onCaptchaSuccess');
-      recaptcha.setAttribute('data-theme', theme);
-      wrapper.appendChild(recaptcha);
-      grecaptcha.render(recaptcha);
-    }
-
-    window.onload = function () {
-      applyTheme(theme);
-    };
 
     async function onCaptchaSuccess(token) {
-      const recaptcha = encodeURIComponent(token);
-      const url = `https://slots.botbandit.com/captcha.php?recaptcha=${recaptcha}&rawData=${rawData}&platform=${platform}`;
+      const encodedToken = encodeURIComponent(token);
+      const url = `https://slots.botbandit.com/captcha.php?recaptcha=${encodedToken}&rawData=${rawData}&platform=${platform}`;
 
       const res = await fetch(url);
       const data = await res.json();
@@ -127,7 +108,8 @@
           alert('Проверка пройдена');
         }
       } else {
-        grecaptcha.reset();
+        // reset hCaptcha
+        if (window.hcaptcha) window.hcaptcha.reset();
       }
     }
   </script>
