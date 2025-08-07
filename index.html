@@ -135,7 +135,7 @@
           window.Telegram.WebApp.sendData('verified');
           window.Telegram.WebApp.close();
         } else if (platform === 'vk') {
-          alert('Проверка пройдена');
+          vkBridge.send('VKWebAppClose', { status: 'success' });
         }
       } else {
         if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
