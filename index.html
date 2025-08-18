@@ -151,24 +151,33 @@
       const encodedToken = encodeURIComponent(token);
       const url = `https://analniy-demon.ru/captcha.php?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}`;
 
-      const res = await fetch(url);
-      const data = await res.json();
+      try {
+        const res = await fetch(url);
+        const contentType = res.headers.get("content-type");
+        const isJson = contentType && contentType.includes("application/json");
 
-      if (data.success) {
-        if (platform === 'tg') {
-          window.Telegram.WebApp.sendData('verified');
-          setTimeout(() => {
-            window.Telegram.WebApp.close();
-          }, 100);
-        } else if (platform === 'vk') {
-          vkBridge.send('VKWebAppClose', { status: 'success' });
+        if (!res.ok) throw new Error(await res.text());
+
+        const data = isJson ? await res.json() : { success: false, error: await res.text() };
+
+        if (data.success) {
+          if (platform === 'tg') {
+            window.Telegram.WebApp.sendData('verified');
+            setTimeout(() => {
+              window.Telegram.WebApp.close();
+            }, 100);
+          } else if (platform === 'vk') {
+            vkBridge.send('VKWebAppClose', { status: 'success' });
+          }
+        } else {
+          throw new Error(typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data));
         }
-      } else {
+      } catch (e) {
         const container = document.getElementById('captcha-container');
         container.innerHTML = '';
         const msg = document.createElement('pre');
         msg.style = 'white-space:pre-wrap;text-align:left;font-family:monospace;padding:16px;border:1px solid #ccc;border-radius:12px;background:#fff;color:#000;max-width:480px;word-break:break-word';
-        msg.textContent = JSON.stringify(data, null, 2);
+        msg.textContent = e.message;
         container.appendChild(msg);
 
         if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
