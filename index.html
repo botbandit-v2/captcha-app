@@ -153,12 +153,13 @@
 
       try {
         const res = await fetch(url);
-        const contentType = res.headers.get("content-type");
-        const isJson = contentType && contentType.includes("application/json");
+        let data;
 
-        if (!res.ok) throw new Error(await res.text());
-
-        const data = isJson ? await res.json() : { success: false, error: await res.text() };
+        try {
+          data = await res.clone().json();
+        } catch (err) {
+          data = { success: false, error: await res.text() };
+        }
 
         if (data.success) {
           if (platform === 'tg') {
