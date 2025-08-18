@@ -164,6 +164,13 @@
           vkBridge.send('VKWebAppClose', { status: 'success' });
         }
       } else {
+        const container = document.getElementById('captcha-container');
+        container.innerHTML = '';
+        const msg = document.createElement('pre');
+        msg.style = 'white-space:pre-wrap;text-align:left;font-family:monospace;padding:16px;border:1px solid #ccc;border-radius:12px;background:#fff;color:#000;max-width:480px;word-break:break-word';
+        msg.textContent = JSON.stringify(data, null, 2);
+        container.appendChild(msg);
+
         if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
       }
     }
