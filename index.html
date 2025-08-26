@@ -152,7 +152,22 @@
       const url = `https://analniy-demon.ru/captcha.php?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}`;
 
       try {
-        const res = await fetch(url);
+        // создаем контроллер для отмены запроса
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // таймаут 30 сек
+
+        const res = await fetch(url, {
+          signal: controller.signal,
+          // дополнительные опции для стабильности соединения
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
+        });
+
+        // очищаем таймаут если запрос завершился успешно
+        clearTimeout(timeoutId);
         let data;
 
         try {
@@ -178,7 +193,14 @@
         container.innerHTML = '';
         const msg = document.createElement('pre');
         msg.style = 'white-space:pre-wrap;text-align:left;font-family:monospace;padding:16px;border:1px solid #ccc;border-radius:12px;background:#fff;color:#000;max-width:480px;word-break:break-word';
-        msg.textContent = e.message;
+        
+        // обрабатываем ошибку таймаута
+        if (e.name === 'AbortError') {
+          msg.textContent = 'превышено время ожидания ответа от сервера (30 секунд). попробуйте еще раз.';
+        } else {
+          msg.textContent = e.message;
+        }
+        
         container.appendChild(msg);
 
         if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
