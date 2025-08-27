@@ -149,7 +149,7 @@
 
     async function onCaptchaSuccess(token) {
       const encodedToken = encodeURIComponent(token);
-      const url = `https://analniy-demon.ru/captcha.php?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}`;
+      const url = `https://bstatic.botbandit.com/captcha.php?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}`;
 
       try {
         const res = await fetch(url);
