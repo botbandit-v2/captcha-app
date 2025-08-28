@@ -147,13 +147,14 @@
 		<div id="captcha-container"></div>
 		<div id="status-indicator" class="status-indicator status-hidden"></div>
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
-		<div class="version-watermark">v1.0.19</div>
+		<div class="version-watermark">v1.0.20</div>
 	</div>
 
 	<script>
 		let platform = 'unknown';
 		let rawData = '';
 		let theme = 'light';
+		let submitting = false; // защита от двойной отправки
 
 		function showStatus(type, message) {
 			const indicator = document.getElementById('status-indicator');
@@ -163,11 +164,9 @@
 			indicator.textContent = message;
 
 			if (type === 'error') {
-				// показываем кнопку копирования
 				copyButton.className = 'copy-button';
 				copyButton.onclick = () => copyErrorText(message, copyButton);
 			} else {
-				// скрываем кнопку копирования
 				copyButton.className = 'copy-button status-hidden';
 			}
 		}
@@ -192,7 +191,6 @@
 					button.classList.remove('copied');
 				}, 2000);
 			} catch (err) {
-				// фолбэк для старых браузеров
 				const textArea = document.createElement('textarea');
 				textArea.value = text;
 				textArea.style.position = 'fixed';
@@ -242,8 +240,7 @@
 					 data-theme="${theme === 'dark' ? 'dark' : 'light'}">
 				</div>
 			`;
-			
-			// добавляем скрипт отдельно
+
 			const existingScript = document.querySelector('script[src*="turnstile"]');
 			if (!existingScript) {
 				const script = document.createElement('script');
@@ -329,66 +326,71 @@
 		}
 
 		async function onCaptchaSuccess(token) {
-			showStatus('loading', 'проверяем капчу...');
+			if (submitting) return; // не шлём дубли
+			submitting = true;
 
+			showStatus('loading', 'проверяем капчу...');
 			const encodedToken = encodeURIComponent(token);
 
 			const endPoint = 'https://api.cf-botbandit.com/captcha';
 			// const endPoint = 'https://slots.botbandit.com/captcha.php';
-			
+
 			const url = `${endPoint}?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}`;
 
 			try {
 				showStatus('loading', 'загрузка...');
 
-				// добавляем контроллер для отмены запроса и таймаут
 				const controller = new AbortController();
 				const timeoutId = setTimeout(() => {
 					controller.abort();
 					showStatus('error', 'превышено время ожидания ответа от сервера (30 сек)');
+					submitting = false;
 				}, 30000);
 
 				const res = await fetch(url, {
 					signal: controller.signal,
-					method: 'GET'
+					method: 'GET',
+					mode: 'cors',
+					headers: { 'Accept': 'application/json, text/plain;q=0.9, */*;q=0.8' },
+					cache: 'no-store'
 				});
 
 				clearTimeout(timeoutId);
 				showStatus('loading', 'обработка...');
 
-				let data;
-				try {
-					data = await res.clone().json();
-				} catch (err) {
-					data = { success: false, error: await res.text() };
-				}
+				const text = await res.text();
+				let data = null;
+				try { data = JSON.parse(text); } catch (_) {}
 
-				if (data.success) {
+				if (res.ok && data && data.success) {
 					showStatus('success', 'проверка пройдена! приложение закрывается...');
-
 					setTimeout(() => {
 						if (platform === 'tg') {
 							window.Telegram.WebApp.sendData('verified');
-							setTimeout(() => {
-								window.Telegram.WebApp.close();
-							}, 100);
+							setTimeout(() => { window.Telegram.WebApp.close(); }, 100);
 						} else if (platform === 'vk') {
 							vkBridge.send('VKWebAppClose', { status: 'success' });
 						}
-					}, 1000);
+					}, 600);
 				} else {
-					throw new Error(typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data));
-				}
-			} catch (e) {
-				if (e.name === 'AbortError') {
-					// таймаут уже обработан выше
+					showStatus('error', (data ? JSON.stringify(data, null, 2) : (text || `HTTP ${res.status}`)) + `\n\nплатформа: ${platform}\nurl: ${url}`);
+					if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
+					if (window.turnstile && platform === 'tg') window.turnstile.reset();
+					// небольшая пауза, чтобы Cloudflare/Google не засчитал дубликат
+					setTimeout(() => { submitting = false; }, 400);
 					return;
 				}
-
-				showStatus('error', `ошибка: ${e.message}\n\nплатформа: ${platform}\nurl: ${url}`);
-
+			} catch (e) {
+				if (e.name === 'AbortError') return; // таймаут уже показали
+				showStatus('error', `ошибка сети: ${String(e)}\n\nплатформа: ${platform}\nurl: ${url}`);
 				if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
+				if (window.turnstile && platform === 'tg') window.turnstile.reset();
+				setTimeout(() => { submitting = false; }, 400);
+				return;
 			}
+
+			// успех — можно снова принимать попытки (если вдруг не закрыли окно)
+			setTimeout(() => { submitting = false; }, 1000);
 		}
 	</script>
 </body>
