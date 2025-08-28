@@ -1,201 +1,398 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
-  <meta charset="UTF-8">
-  <title>Проверка CAPTCHA</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      width: 100vw;
-    }
-    body {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 0;
-      box-sizing: border-box;
-      background-color: var(--bg-color, #ffffff);
-      transition: background-color 0.3s ease;
-    }
-    .captcha-wrapper {
-      width: 100%;
-      max-width: 360px;
-      padding: 0 16px;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .version-watermark {
-      margin-top: 16px;
-      text-align: center;
-      font-size: 10px;
-      color: rgba(128, 128, 128, 0.5);
-      font-family: monospace;
-      pointer-events: none;
-    }
-  </style>
+	<meta charset="UTF-8">
+	<title>Проверка CAPTCHA</title>
+	<meta name="viewport"
+		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
+	<script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+	<script src="https://telegram.org/js/telegram-web-app.js"></script>
+	<style>
+		html,
+		body {
+			margin: 0;
+			padding: 0;
+			height: 100vh;
+			width: 100vw;
+			touch-action: manipulation;
+			-webkit-text-size-adjust: 100%;
+			-ms-text-size-adjust: 100%;
+		}
+
+		body {
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			padding: 0;
+			box-sizing: border-box;
+			background-color: var(--bg-color, #ffffff);
+			transition: background-color 0.3s ease;
+		}
+
+		.captcha-wrapper {
+			width: 100%;
+			max-width: 360px;
+			padding: 0 16px;
+			box-sizing: border-box;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			overflow-x: hidden;
+		}
+
+		.version-watermark {
+			margin-top: 16px;
+			text-align: center;
+			font-size: 10px;
+			color: rgba(128, 128, 128, 0.5);
+			font-family: monospace;
+			pointer-events: none;
+		}
+
+		.status-indicator {
+			margin-top: 12px;
+			padding: 8px 12px;
+			text-align: center;
+			font-size: 12px;
+			border-radius: 6px;
+			font-family: system-ui, -apple-system, sans-serif;
+			min-height: 16px;
+			transition: all 0.3s ease;
+			max-width: 100%;
+			width: 100%;
+			box-sizing: border-box;
+		}
+
+		.status-loading {
+			background: rgba(0, 123, 255, 0.1);
+			color: #007bff;
+			border: 1px solid rgba(0, 123, 255, 0.3);
+		}
+
+		.status-success {
+			background: rgba(40, 167, 69, 0.1);
+			color: #28a745;
+			border: 1px solid rgba(40, 167, 69, 0.3);
+		}
+
+		.status-error {
+			background: rgba(220, 53, 69, 0.1);
+			color: #dc3545;
+			border: 1px solid rgba(220, 53, 69, 0.3);
+			border-radius: 6px;
+			white-space: pre-wrap;
+			text-align: left;
+			font-family: monospace;
+			font-size: 11px;
+			max-width: 100%;
+			width: 100vw;
+			box-sizing: border-box;
+			word-wrap: break-word;
+			word-break: break-all;
+			overflow-wrap: break-word;
+			margin-left: calc(-50vw + 50%);
+			margin-right: calc(-50vw + 50%);
+			padding: 8px 4px;
+			max-height: 60vh;
+			overflow-y: auto;
+			position: relative;
+			z-index: 9999;
+		}
+
+		.copy-button {
+			background: #dc3545;
+			color: white;
+			border: 1px solid rgba(220, 53, 69, 0.3);
+			border-radius: 6px;
+			padding: 12px;
+			font-size: 12px;
+			cursor: pointer;
+			font-family: system-ui, -apple-system, sans-serif;
+			transition: background-color 0.2s ease;
+			width: 100%;
+			max-width: 100%;
+			box-sizing: border-box;
+			margin-top: 8px;
+			margin-bottom: 0;
+			text-align: center;
+			font-weight: 500;
+			display: block;
+			outline: none;
+		}
+
+		.copy-button:hover {
+			background: #c82333 !important;
+		}
+
+		.copy-button:active {
+			background: #bd2130 !important;
+		}
+
+		.copy-button.copied {
+			background: #28a745 !important;
+		}
+
+		.status-hidden {
+			opacity: 0;
+			height: 0;
+			margin: 0;
+			padding: 0;
+		}
+	</style>
 </head>
+
 <body>
-  <div class="captcha-wrapper">
-    <div id="captcha-container"></div>
-    <div class="version-watermark">v1.0.1p1</div>
-  </div>
+	<div class="captcha-wrapper">
+		<div id="captcha-container"></div>
+		<div id="status-indicator" class="status-indicator status-hidden"></div>
+		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
+		<div class="version-watermark">v1.1</div>
+	</div>
 
-  <script>
-    let platform = 'unknown';
-    let rawData = '';
-    let theme = 'light';
+	<script>
+		let platform = 'unknown';
+		let rawData = '';
+		let theme = 'light';
+		let submitting = false; // защита от двойной отправки
 
-    const isTelegram = window.Telegram?.WebApp?.initData;
-    const isVK = !isTelegram;
+		function showStatus(type, message) {
+			const indicator = document.getElementById('status-indicator');
+			const copyButton = document.getElementById('copy-button');
 
-    function applyTheme(theme) {
-      document.body.style.setProperty('--bg-color', theme === 'dark' ? '#000000' : '#ffffff');
-      if (platform === 'vk' && window.hcaptcha) {
-        const captcha = document.querySelector('.h-captcha');
-        if (captcha) captcha.setAttribute('data-theme', theme);
-      }
-    }
+			indicator.className = `status-indicator status-${type}`;
+			indicator.textContent = message;
 
-    function insertTelegramCaptcha() {
-      const container = document.getElementById('captcha-container');
-      container.innerHTML = `<div id="recaptcha-el"></div>`;
+			if (type === 'error') {
+				copyButton.className = 'copy-button';
+				copyButton.onclick = () => copyErrorText(message, copyButton);
+			} else {
+				copyButton.className = 'copy-button status-hidden';
+			}
+		}
 
-      const existingScript = document.querySelector('script[src*="recaptcha"]');
-      if (existingScript) existingScript.remove();
+		function hideStatus() {
+			const indicator = document.getElementById('status-indicator');
+			const copyButton = document.getElementById('copy-button');
 
-      const script = document.createElement('script');
-      script.src = 'https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoaded&render=explicit';
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    }
+			indicator.className = 'status-indicator status-hidden';
+			copyButton.className = 'copy-button status-hidden';
+		}
 
-    function onRecaptchaLoaded() {
-      grecaptcha.render('recaptcha-el', {
-        sitekey: '6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW',
-        callback: onCaptchaSuccess,
-        theme: theme
-      });
-    }
+		async function copyErrorText(text, button) {
+			try {
+				await navigator.clipboard.writeText(text);
+				const originalText = button.textContent;
+				button.textContent = 'скопировано';
+				button.classList.add('copied');
 
-    function insertVKCaptcha() {
-      const container = document.getElementById('captcha-container');
-      container.innerHTML = `
+				setTimeout(() => {
+					button.textContent = originalText;
+					button.classList.remove('copied');
+				}, 2000);
+			} catch (err) {
+				const textArea = document.createElement('textarea');
+				textArea.value = text;
+				textArea.style.position = 'fixed';
+				textArea.style.left = '-999999px';
+				textArea.style.top = '-999999px';
+				document.body.appendChild(textArea);
+				textArea.focus();
+				textArea.select();
+
+				try {
+					document.execCommand('copy');
+					button.textContent = 'скопировано';
+					button.classList.add('copied');
+
+					setTimeout(() => {
+						button.textContent = 'копировать текст ошибки';
+						button.classList.remove('copied');
+					}, 2000);
+				} catch (err2) {
+					button.textContent = 'ошибка';
+					setTimeout(() => {
+						button.textContent = 'копировать текст ошибки';
+					}, 2000);
+				}
+
+				document.body.removeChild(textArea);
+			}
+		}
+
+		const isTelegram = window.Telegram?.WebApp?.initData;
+		const isVK = !isTelegram;
+
+		function applyTheme(theme) {
+			document.body.style.setProperty('--bg-color', theme === 'dark' ? '#000000' : '#ffffff');
+			if (platform === 'vk' && window.hcaptcha) {
+				const captcha = document.querySelector('.h-captcha');
+				if (captcha) captcha.setAttribute('data-theme', theme);
+			}
+		}
+
+		function insertTelegramCaptcha() {
+			const container = document.getElementById('captcha-container');
+			container.innerHTML = `
+				<div class="cf-turnstile" 
+					 data-sitekey="0x4AAAAAABvVfFdKvgN--jG6" 
+					 data-callback="onCaptchaSuccess"
+					 data-theme="${theme === 'dark' ? 'dark' : 'light'}">
+				</div>
+			`;
+
+			const existingScript = document.querySelector('script[src*="turnstile"]');
+			if (!existingScript) {
+				const script = document.createElement('script');
+				script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+				script.async = true;
+				script.defer = true;
+				document.head.appendChild(script);
+			}
+		}
+
+		function insertVKCaptcha() {
+			const container = document.getElementById('captcha-container');
+			container.innerHTML = `
         <div class="h-captcha" 
              data-sitekey="5ae63666-6d46-47b0-ad48-a96829a83a7a" 
              data-callback="onCaptchaSuccess" 
              data-theme="${theme}">
         </div>`;
 
-      const existingScript = document.querySelector('script[src*="hcaptcha"]');
-      if (existingScript) existingScript.remove();
+			const existingScript = document.querySelector('script[src*="hcaptcha"]');
+			if (existingScript) existingScript.remove();
 
-      const script = document.createElement('script');
-      script.src = 'https://hcaptcha.com/1/api.js?hl=ru&onload=hcaptchaLoaded';
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    }
+			const script = document.createElement('script');
+			script.src = 'https://hcaptcha.com/1/api.js?hl=ru&onload=hcaptchaLoaded';
+			script.async = true;
+			script.defer = true;
+			document.head.appendChild(script);
+		}
 
-    function hcaptchaLoaded() {
-      const container = document.querySelector('.h-captcha');
-      if (container && window.hcaptcha) {
-        window.hcaptcha.render(container);
-      }
-    }
+		function hcaptchaLoaded() {
+			const container = document.querySelector('.h-captcha');
+			if (container && window.hcaptcha) {
+				window.hcaptcha.render(container);
+			}
+		}
 
-    if (isTelegram) {
-      const tg = window.Telegram.WebApp;
-      platform = 'tg';
-      rawData = encodeURIComponent(JSON.stringify(tg.initDataUnsafe));
-      theme = tg.colorScheme;
-      tg.ready();
+		if (isTelegram) {
+			const tg = window.Telegram.WebApp;
+			platform = 'tg';
+			rawData = encodeURIComponent(JSON.stringify(tg.initDataUnsafe));
+			theme = tg.colorScheme;
+			tg.ready();
 
-      tg.onEvent('themeChanged', () => {
-        theme = tg.colorScheme;
-        applyTheme(theme);
-        insertTelegramCaptcha();
-      });
+			tg.onEvent('themeChanged', () => {
+				theme = tg.colorScheme;
+				applyTheme(theme);
+				insertTelegramCaptcha();
+			});
 
-      applyTheme(theme);
-      insertTelegramCaptcha();
+			applyTheme(theme);
+			insertTelegramCaptcha();
 
-    } else if (isVK) {
-      platform = 'vk';
+		} else if (isVK) {
+			platform = 'vk';
 
-      (async () => {
-        try {
-          await vkBridge.send('VKWebAppInit');
-          const launchParams = await vkBridge.send('VKWebAppGetLaunchParams');
-          rawData = encodeURIComponent(JSON.stringify(launchParams));
+			(async () => {
+				try {
+					await vkBridge.send('VKWebAppInit');
+					const launchParams = await vkBridge.send('VKWebAppGetLaunchParams');
+					rawData = encodeURIComponent(JSON.stringify(launchParams));
 
-          const config = await vkBridge.send('VKWebAppGetConfig');
-          theme = config.scheme?.includes('dark') ? 'dark' : 'light';
-          applyTheme(theme);
+					const config = await vkBridge.send('VKWebAppGetConfig');
+					theme = config.scheme?.includes('dark') ? 'dark' : 'light';
+					applyTheme(theme);
 
-          vkBridge.subscribe(e => {
-            if (e.detail.type === 'VKWebAppUpdateConfig') {
-              const newScheme = e.detail.data.scheme || 'bright_light';
-              const newTheme = newScheme.includes('dark') ? 'dark' : 'light';
-              theme = newTheme;
-              applyTheme(theme);
-              insertVKCaptcha();
-            }
-          });
+					vkBridge.subscribe(e => {
+						if (e.detail.type === 'VKWebAppUpdateConfig') {
+							const newScheme = e.detail.data.scheme || 'bright_light';
+							const newTheme = newScheme.includes('dark') ? 'dark' : 'light';
+							theme = newTheme;
+							applyTheme(theme);
+							insertVKCaptcha();
+						}
+					});
 
-          insertVKCaptcha();
-        } catch (err) {
-          console.error('[VK] Ошибка инициализации:', err);
-          document.body.innerHTML += '<pre style="color: red">VK init failed:\n' + err.toString() + '</pre>';
-          alert('VK Mini App не смог загрузиться. Проверь подключение и запусти через VK.');
-        }
-      })();
-    }
+					insertVKCaptcha();
+				} catch (err) {
+					console.error('[VK] Ошибка инициализации:', err);
+					document.body.innerHTML += '<pre style="color: red">VK init failed:\n' + err.toString() + '</pre>';
+					alert('VK Mini App не смог загрузиться. Проверь подключение и запусти через VK.');
+				}
+			})();
+		}
 
-    async function onCaptchaSuccess(token) {
-      const encodedToken = encodeURIComponent(token);
-      const url = `https://analniy-demon.ru/captcha.php?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}`;
+		async function onCaptchaSuccess(token) {
+			if (submitting) return; // не шлём дубли
+			submitting = true;
 
-      try {
-        const res = await fetch(url);
-        let data;
+			showStatus('loading', 'проверяем капчу...');
+			const encodedToken = encodeURIComponent(token);
 
-        try {
-          data = await res.clone().json();
-        } catch (err) {
-          data = { success: false, error: await res.text() };
-        }
+			const endPoint = 'https://api.cf-botbandit.com/captcha/';
+			// const endPoint = 'https://slots.botbandit.com/captcha.php';
 
-        if (data.success) {
-          if (platform === 'tg') {
-            window.Telegram.WebApp.sendData('verified');
-            setTimeout(() => {
-              window.Telegram.WebApp.close();
-            }, 100);
-          } else if (platform === 'vk') {
-            vkBridge.send('VKWebAppClose', { status: 'success' });
-          }
-        } else {
-          throw new Error(typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data));
-        }
-      } catch (e) {
-        const container = document.getElementById('captcha-container');
-        container.innerHTML = '';
-        const msg = document.createElement('pre');
-        msg.style = 'white-space:pre-wrap;text-align:left;font-family:monospace;padding:16px;border:1px solid #ccc;border-radius:12px;background:#fff;color:#000;max-width:480px;word-break:break-word';
-        msg.textContent = e.message;
-        container.appendChild(msg);
+			const url = `${endPoint}?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}`;
 
-        if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
-      }
-    }
-  </script>
+			try {
+				showStatus('loading', 'загрузка...');
+
+				const controller = new AbortController();
+				const timeoutId = setTimeout(() => {
+					controller.abort();
+					showStatus('error', 'превышено время ожидания ответа от сервера (30 сек)');
+					submitting = false;
+				}, 30000);
+
+				const res = await fetch(url, {
+					signal: controller.signal,
+					method: 'GET',
+					mode: 'cors',
+					headers: { 'Accept': 'application/json, text/plain;q=0.9, */*;q=0.8' },
+					cache: 'no-store'
+				});
+
+				clearTimeout(timeoutId);
+				showStatus('loading', 'обработка...');
+
+				const text = await res.text();
+				let data = null;
+				try { data = JSON.parse(text); } catch (_) {}
+
+				if (res.ok && data && data.success) {
+					showStatus('success', 'проверка пройдена! приложение закрывается...');
+					setTimeout(() => {
+						if (platform === 'tg') {
+							window.Telegram.WebApp.sendData('verified');
+							setTimeout(() => { window.Telegram.WebApp.close(); }, 100);
+						} else if (platform === 'vk') {
+							vkBridge.send('VKWebAppClose', { status: 'success' });
+						}
+					}, 600);
+				} else {
+					showStatus('error', (data ? JSON.stringify(data, null, 2) : (text || `HTTP ${res.status}`)) + `\n\nплатформа: ${platform}\nurl: ${url}`);
+					if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
+					if (window.turnstile && platform === 'tg') window.turnstile.reset();
+					// небольшая пауза, чтобы Cloudflare/Google не засчитал дубликат
+					setTimeout(() => { submitting = false; }, 400);
+					return;
+				}
+			} catch (e) {
+				if (e.name === 'AbortError') return; // таймаут уже показали
+				showStatus('error', `ошибка сети: ${String(e)}\n\nплатформа: ${platform}\nurl: ${url}`);
+				if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
+				if (window.turnstile && platform === 'tg') window.turnstile.reset();
+				setTimeout(() => { submitting = false; }, 400);
+				return;
+			}
+
+			// успех — можно снова принимать попытки (если вдруг не закрыли окно)
+			setTimeout(() => { submitting = false; }, 1000);
+		}
+	</script>
 </body>
+
 </html>
