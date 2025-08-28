@@ -147,7 +147,7 @@
 		<div id="captcha-container"></div>
 		<div id="status-indicator" class="status-indicator status-hidden"></div>
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
-		<div class="version-watermark">v1.0.16</div>
+		<div class="version-watermark">v1.0.17</div>
 	</div>
 
 	<script>
@@ -233,41 +233,63 @@
 			}
 		}
 
+		let turnstileWidgetId = null;
+
 		function insertTelegramCaptcha() {
 			const container = document.getElementById('captcha-container');
 			
 			// очищаем контейнер полностью
 			container.innerHTML = '';
 			
-			// убираем все существующие turnstile виджеты
-			if (window.turnstile) {
+			// убираем существующий виджет если есть
+			if (window.turnstile && turnstileWidgetId !== null) {
 				try {
-					window.turnstile.remove();
+					window.turnstile.remove(turnstileWidgetId);
+					turnstileWidgetId = null;
 				} catch (e) {
-					// игнорируем ошибки
+					console.log('ошибка при удалении turnstile виджета:', e);
 				}
 			}
 			
 			// создаем новый контейнер
 			container.innerHTML = `<div id="turnstile-el"></div>`;
 
-			// удаляем старые скрипты
-			const existingScripts = document.querySelectorAll('script[src*="turnstile"]');
-			existingScripts.forEach(script => script.remove());
+			// проверяем загружен ли уже Turnstile API
+			if (window.turnstile) {
+				// API уже загружен, сразу рендерим
+				renderTurnstile();
+			} else {
+				// загружаем API если его еще нет
+				const existingScript = document.querySelector('script[src*="turnstile"]');
+				if (!existingScript) {
+					const script = document.createElement('script');
+					script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoaded&render=explicit';
+					script.async = true;
+					script.defer = true;
+					document.head.appendChild(script);
+				}
+			}
+		}
 
-			const script = document.createElement('script');
-			script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoaded&render=explicit';
-			script.async = true;
-			script.defer = true;
-			document.head.appendChild(script);
+		function renderTurnstile() {
+			if (!window.turnstile) return;
+			
+			const element = document.getElementById('turnstile-el');
+			if (!element) return;
+			
+			try {
+				turnstileWidgetId = window.turnstile.render('#turnstile-el', {
+					sitekey: '0x4AAAAAABvVfFdKvgN--jG6',
+					callback: onCaptchaSuccess,
+					theme: theme === 'dark' ? 'dark' : 'light'
+				});
+			} catch (e) {
+				console.log('ошибка при рендеринге turnstile:', e);
+			}
 		}
 
 		function onTurnstileLoaded() {
-			turnstile.render('#turnstile-el', {
-				sitekey: '0x4AAAAAABvVfFdKvgN--jG6',
-				callback: onCaptchaSuccess,
-				theme: theme === 'dark' ? 'dark' : 'light'
-			});
+			renderTurnstile();
 		}
 
 		function insertVKCaptcha() {
