@@ -127,8 +127,8 @@
   <div class="captcha-wrapper">
     <div id="captcha-container"></div>
     <div id="status-indicator" class="status-indicator status-hidden"></div>
-    <button id="copy-button" class="copy-button status-hidden">копировать ошибку</button>
-    <div class="version-watermark">v1.0.10a</div>
+    <button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
+    <div class="version-watermark">v1.0.11</div>
   </div>
 
   <script>
@@ -165,7 +165,7 @@
       try {
         await navigator.clipboard.writeText(text);
         const originalText = button.textContent;
-        button.textContent = 'скопировано!';
+        button.textContent = 'скопировано';
         button.classList.add('copied');
         
         setTimeout(() => {
@@ -185,17 +185,17 @@
         
         try {
           document.execCommand('copy');
-          button.textContent = 'скопировано!';
+          button.textContent = 'скопировано';
           button.classList.add('copied');
           
           setTimeout(() => {
-            button.textContent = 'копировать';
+            button.textContent = 'копировать текст ошибки';
             button.classList.remove('copied');
           }, 2000);
         } catch (err2) {
           button.textContent = 'ошибка';
           setTimeout(() => {
-            button.textContent = 'копировать';
+            button.textContent = 'копировать текст ошибки';
           }, 2000);
         }
         
