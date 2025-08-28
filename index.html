@@ -367,11 +367,11 @@
 					setTimeout(() => {
 						if (platform === 'tg') {
 							window.Telegram.WebApp.sendData('verified');
-							setTimeout(() => { window.Telegram.WebApp.close(); }, 100);
+							setTimeout(() => { window.Telegram.WebApp.close(); }, 50);
 						} else if (platform === 'vk') {
 							vkBridge.send('VKWebAppClose', { status: 'success' });
 						}
-					}, 600);
+					}, 50);
 				} else {
 					showStatus('error', (data ? JSON.stringify(data, null, 2) : (text || `HTTP ${res.status}`)) + `\n\nплатформа: ${platform}\nurl: ${url}`);
 					if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
