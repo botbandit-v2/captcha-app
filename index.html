@@ -79,14 +79,14 @@
       overflow-wrap: break-word;
       margin-left: calc(-50vw + 50%);
       margin-right: calc(-50vw + 50%);
-      padding: 8px 4px 40px 4px;
+      padding: 8px 4px;
       max-height: 60vh;
       overflow-y: auto;
       position: relative;
       z-index: 9999;
     }
     .copy-button {
-      position: absolute;
+      position: fixed;
       bottom: 8px;
       right: 8px;
       background: #dc3545;
@@ -99,6 +99,7 @@
       font-family: system-ui, -apple-system, sans-serif;
       transition: background-color 0.2s ease;
       z-index: 10000;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
     .copy-button:hover {
       background: #c82333;
@@ -121,7 +122,7 @@
   <div class="captcha-wrapper">
     <div id="captcha-container"></div>
     <div id="status-indicator" class="status-indicator status-hidden"></div>
-    <div class="version-watermark">v1.0.5a</div>
+    <div class="version-watermark">v1.0.6a</div>
   </div>
 
   <script>
@@ -133,21 +134,22 @@
       const indicator = document.getElementById('status-indicator');
       indicator.className = `status-indicator status-${type}`;
       
+      // удаляем старую кнопку копирования если есть
+      const oldButton = document.querySelector('.copy-button');
+      if (oldButton) {
+        oldButton.remove();
+      }
+      
       if (type === 'error') {
-        // создаем контейнер для текста и кнопки
-        indicator.innerHTML = '';
+        indicator.textContent = message;
         
-        const textDiv = document.createElement('div');
-        textDiv.textContent = message;
-        textDiv.style.paddingBottom = '0';
-        
+        // создаем кнопку копирования
         const copyButton = document.createElement('button');
         copyButton.className = 'copy-button';
         copyButton.textContent = 'копировать';
         copyButton.onclick = () => copyErrorText(message, copyButton);
         
-        indicator.appendChild(textDiv);
-        indicator.appendChild(copyButton);
+        document.body.appendChild(copyButton);
       } else {
         indicator.textContent = message;
       }
@@ -156,6 +158,12 @@
     function hideStatus() {
       const indicator = document.getElementById('status-indicator');
       indicator.className = 'status-indicator status-hidden';
+      
+      // удаляем кнопку копирования если есть
+      const copyButton = document.querySelector('.copy-button');
+      if (copyButton) {
+        copyButton.remove();
+      }
     }
 
     async function copyErrorText(text, button) {
