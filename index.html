@@ -147,7 +147,7 @@
 		<div id="captcha-container"></div>
 		<div id="status-indicator" class="status-indicator status-hidden"></div>
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
-		<div class="version-watermark">v1.0.14</div>
+		<div class="version-watermark">v1.0.15</div>
 	</div>
 
 	<script>
@@ -231,18 +231,29 @@
 				const captcha = document.querySelector('.h-captcha');
 				if (captcha) captcha.setAttribute('data-theme', theme);
 			}
-			// для turnstile нужно перерендерить капчу при смене темы
-			if (platform === 'tg' && window.turnstile) {
-				insertTelegramCaptcha();
-			}
 		}
 
 		function insertTelegramCaptcha() {
 			const container = document.getElementById('captcha-container');
+			
+			// очищаем контейнер полностью
+			container.innerHTML = '';
+			
+			// убираем все существующие turnstile виджеты
+			if (window.turnstile) {
+				try {
+					window.turnstile.remove();
+				} catch (e) {
+					// игнорируем ошибки
+				}
+			}
+			
+			// создаем новый контейнер
 			container.innerHTML = `<div id="turnstile-el"></div>`;
 
-			const existingScript = document.querySelector('script[src*="turnstile"]');
-			if (existingScript) existingScript.remove();
+			// удаляем старые скрипты
+			const existingScripts = document.querySelectorAll('script[src*="turnstile"]');
+			existingScripts.forEach(script => script.remove());
 
 			const script = document.createElement('script');
 			script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoaded&render=explicit';
