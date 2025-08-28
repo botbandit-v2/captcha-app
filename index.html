@@ -67,6 +67,8 @@
       background: rgba(220, 53, 69, 0.1);
       color: #dc3545;
       border: 1px solid rgba(220, 53, 69, 0.3);
+      border-bottom: none;
+      border-radius: 6px 6px 0 0;
       white-space: pre-wrap;
       text-align: left;
       font-family: monospace;
@@ -86,20 +88,23 @@
       z-index: 9999;
     }
     .copy-button {
-      position: fixed;
-      bottom: 8px;
-      right: 8px;
       background: #dc3545;
       color: white;
-      border: none;
-      border-radius: 4px;
-      padding: 6px 12px;
-      font-size: 11px;
+      border: 1px solid rgba(220, 53, 69, 0.3);
+      border-top: none;
+      border-radius: 0 0 6px 6px;
+      padding: 12px;
+      font-size: 12px;
       cursor: pointer;
       font-family: system-ui, -apple-system, sans-serif;
       transition: background-color 0.2s ease;
-      z-index: 10000;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      width: 100vw;
+      box-sizing: border-box;
+      margin-left: calc(-50vw + 50%);
+      margin-right: calc(-50vw + 50%);
+      margin-top: 0;
+      text-align: center;
+      font-weight: 500;
     }
     .copy-button:hover {
       background: #c82333;
@@ -122,7 +127,7 @@
   <div class="captcha-wrapper">
     <div id="captcha-container"></div>
     <div id="status-indicator" class="status-indicator status-hidden"></div>
-    <div class="version-watermark">v1.0.6a</div>
+    <div class="version-watermark">v1.0.7a</div>
   </div>
 
   <script>
@@ -143,13 +148,14 @@
       if (type === 'error') {
         indicator.textContent = message;
         
-        // создаем кнопку копирования
+        // создаем кнопку копирования прямо после блока ошибки
         const copyButton = document.createElement('button');
         copyButton.className = 'copy-button';
-        copyButton.textContent = 'копировать';
+        copyButton.textContent = 'Копировать ошибку';
         copyButton.onclick = () => copyErrorText(message, copyButton);
         
-        document.body.appendChild(copyButton);
+        // вставляем кнопку сразу после индикатора статуса
+        indicator.parentNode.insertBefore(copyButton, indicator.nextSibling);
       } else {
         indicator.textContent = message;
       }
