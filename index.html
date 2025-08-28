@@ -72,11 +72,15 @@
       font-family: monospace;
       font-size: 11px;
       max-width: 100%;
-      width: 100%;
+      width: 100vw;
       box-sizing: border-box;
       word-wrap: break-word;
       word-break: break-all;
       overflow-wrap: break-word;
+      margin-left: calc(-50vw + 50%);
+      margin-right: calc(-50vw + 50%);
+      padding-left: 16px;
+      padding-right: 16px;
     }
     .status-hidden {
       opacity: 0;
@@ -90,7 +94,7 @@
   <div class="captcha-wrapper">
     <div id="captcha-container"></div>
     <div id="status-indicator" class="status-indicator status-hidden"></div>
-    <div class="version-watermark">v1.0.2a</div>
+    <div class="version-watermark">v1.0.3a</div>
   </div>
 
   <script>
