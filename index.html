@@ -30,6 +30,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      overflow-x: hidden;
     }
     .version-watermark {
       margin-top: 16px;
@@ -48,6 +49,9 @@
       font-family: system-ui, -apple-system, sans-serif;
       min-height: 16px;
       transition: all 0.3s ease;
+      max-width: 100%;
+      width: 100%;
+      box-sizing: border-box;
     }
     .status-loading {
       background: rgba(0, 123, 255, 0.1);
@@ -67,6 +71,12 @@
       text-align: left;
       font-family: monospace;
       font-size: 11px;
+      max-width: 100%;
+      width: 100%;
+      box-sizing: border-box;
+      word-wrap: break-word;
+      word-break: break-all;
+      overflow-wrap: break-word;
     }
     .status-hidden {
       opacity: 0;
