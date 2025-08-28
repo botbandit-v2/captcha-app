@@ -147,7 +147,7 @@
 		<div id="captcha-container"></div>
 		<div id="status-indicator" class="status-indicator status-hidden"></div>
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
-		<div class="version-watermark">v1.0.20</div>
+		<div class="version-watermark">v1.0.21</div>
 	</div>
 
 	<script>
@@ -332,7 +332,7 @@
 			showStatus('loading', 'проверяем капчу...');
 			const encodedToken = encodeURIComponent(token);
 
-			const endPoint = 'https://api.cf-botbandit.com/captcha';
+			const endPoint = 'https://api.cf-botbandit.com/captcha/';
 			// const endPoint = 'https://slots.botbandit.com/captcha.php';
 
 			const url = `${endPoint}?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}`;
