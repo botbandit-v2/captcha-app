@@ -79,8 +79,11 @@
       overflow-wrap: break-word;
       margin-left: calc(-50vw + 50%);
       margin-right: calc(-50vw + 50%);
-      padding-left: 16px;
-      padding-right: 16px;
+      padding: 8px 4px;
+      max-height: 60vh;
+      overflow-y: auto;
+      position: relative;
+      z-index: 9999;
     }
     .status-hidden {
       opacity: 0;
@@ -94,7 +97,7 @@
   <div class="captcha-wrapper">
     <div id="captcha-container"></div>
     <div id="status-indicator" class="status-indicator status-hidden"></div>
-    <div class="version-watermark">v1.0.3a</div>
+    <div class="version-watermark">v1.0.4a</div>
   </div>
 
   <script>
