@@ -28,24 +28,24 @@
       padding: 0 16px;
       box-sizing: border-box;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
+      align-items: center;
     }
     .version-watermark {
-      position: fixed;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
+      margin-top: 16px;
+      text-align: center;
       font-size: 10px;
       color: rgba(128, 128, 128, 0.5);
       font-family: monospace;
       pointer-events: none;
-      z-index: 1000;
     }
   </style>
 </head>
 <body>
-  <div class="captcha-wrapper" id="captcha-container"></div>
-  <div class="version-watermark">v1.0.0</div>
+  <div class="captcha-wrapper">
+    <div id="captcha-container"></div>
+    <div class="version-watermark">v1.0.0</div>
+  </div>
 
   <script>
     let platform = 'unknown';
