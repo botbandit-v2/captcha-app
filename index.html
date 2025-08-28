@@ -79,11 +79,35 @@
       overflow-wrap: break-word;
       margin-left: calc(-50vw + 50%);
       margin-right: calc(-50vw + 50%);
-      padding: 8px 4px;
+      padding: 8px 4px 40px 4px;
       max-height: 60vh;
       overflow-y: auto;
       position: relative;
       z-index: 9999;
+    }
+    .copy-button {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 12px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: system-ui, -apple-system, sans-serif;
+      transition: background-color 0.2s ease;
+      z-index: 10000;
+    }
+    .copy-button:hover {
+      background: #c82333;
+    }
+    .copy-button:active {
+      background: #bd2130;
+    }
+    .copy-button.copied {
+      background: #28a745;
     }
     .status-hidden {
       opacity: 0;
@@ -97,7 +121,7 @@
   <div class="captcha-wrapper">
     <div id="captcha-container"></div>
     <div id="status-indicator" class="status-indicator status-hidden"></div>
-    <div class="version-watermark">v1.0.4a</div>
+    <div class="version-watermark">v1.0.5a</div>
   </div>
 
   <script>
@@ -108,12 +132,72 @@
     function showStatus(type, message) {
       const indicator = document.getElementById('status-indicator');
       indicator.className = `status-indicator status-${type}`;
-      indicator.textContent = message;
+      
+      if (type === 'error') {
+        // создаем контейнер для текста и кнопки
+        indicator.innerHTML = '';
+        
+        const textDiv = document.createElement('div');
+        textDiv.textContent = message;
+        textDiv.style.paddingBottom = '0';
+        
+        const copyButton = document.createElement('button');
+        copyButton.className = 'copy-button';
+        copyButton.textContent = 'копировать';
+        copyButton.onclick = () => copyErrorText(message, copyButton);
+        
+        indicator.appendChild(textDiv);
+        indicator.appendChild(copyButton);
+      } else {
+        indicator.textContent = message;
+      }
     }
 
     function hideStatus() {
       const indicator = document.getElementById('status-indicator');
       indicator.className = 'status-indicator status-hidden';
+    }
+
+    async function copyErrorText(text, button) {
+      try {
+        await navigator.clipboard.writeText(text);
+        const originalText = button.textContent;
+        button.textContent = 'скопировано!';
+        button.classList.add('copied');
+        
+        setTimeout(() => {
+          button.textContent = originalText;
+          button.classList.remove('copied');
+        }, 2000);
+      } catch (err) {
+        // фолбэк для старых браузеров
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        
+        try {
+          document.execCommand('copy');
+          button.textContent = 'скопировано!';
+          button.classList.add('copied');
+          
+          setTimeout(() => {
+            button.textContent = 'копировать';
+            button.classList.remove('copied');
+          }, 2000);
+        } catch (err2) {
+          button.textContent = 'ошибка';
+          setTimeout(() => {
+            button.textContent = 'копировать';
+          }, 2000);
+        }
+        
+        document.body.removeChild(textArea);
+      }
     }
 
     const isTelegram = window.Telegram?.WebApp?.initData;
@@ -230,7 +314,7 @@
       const url = `https://bstatic.botbandit.com/captcha.php?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}`;
 
       try {
-        showStatus('loading', 'отправляем запрос на сервер...');
+        showStatus('loading', 'загрузка...');
         
         // добавляем контроллер для отмены запроса и таймаут
         const controller = new AbortController();
@@ -249,7 +333,7 @@
         });
 
         clearTimeout(timeoutId);
-        showStatus('loading', 'получили ответ, обрабатываем...');
+        showStatus('loading', 'обработка...');
         
         let data;
         try {
@@ -259,7 +343,7 @@
         }
 
         if (data.success) {
-          showStatus('success', 'проверка пройдена! закрываем приложение...');
+          showStatus('success', 'проверка пройдена! приложение закрывается...');
           
           setTimeout(() => {
             if (platform === 'tg') {
