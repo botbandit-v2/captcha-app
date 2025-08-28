@@ -87,27 +87,24 @@
       z-index: 9999;
     }
     .copy-button {
-      background: #dc3545 !important;
-      color: white !important;
-      border: 1px solid rgba(220, 53, 69, 0.3) !important;
-      border-radius: 6px !important;
-      padding: 12px 4px !important;
-      font-size: 12px !important;
-      cursor: pointer !important;
-      font-family: system-ui, -apple-system, sans-serif !important;
-      transition: background-color 0.2s ease !important;
-      width: 100vw !important;
-      max-width: 100vw !important;
-      min-width: 100vw !important;
-      box-sizing: border-box !important;
-      margin-left: calc(-50vw + 50%) !important;
-      margin-right: calc(-50vw + 50%) !important;
-      margin-top: 8px !important;
-      margin-bottom: 0 !important;
-      text-align: center !important;
-      font-weight: 500 !important;
-      display: block !important;
-      outline: none !important;
+      background: #dc3545;
+      color: white;
+      border: 1px solid rgba(220, 53, 69, 0.3);
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: system-ui, -apple-system, sans-serif;
+      transition: background-color 0.2s ease;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      margin-top: 8px;
+      margin-bottom: 0;
+      text-align: center;
+      font-weight: 500;
+      display: block;
+      outline: none;
     }
     .copy-button:hover {
       background: #c82333 !important;
@@ -130,7 +127,8 @@
   <div class="captcha-wrapper">
     <div id="captcha-container"></div>
     <div id="status-indicator" class="status-indicator status-hidden"></div>
-    <div class="version-watermark">v1.0.9a</div>
+    <button id="copy-button" class="copy-button status-hidden">копировать ошибку</button>
+    <div class="version-watermark">v1.0.10a</div>
   </div>
 
   <script>
@@ -140,39 +138,27 @@
 
     function showStatus(type, message) {
       const indicator = document.getElementById('status-indicator');
-      indicator.className = `status-indicator status-${type}`;
+      const copyButton = document.getElementById('copy-button');
       
-      // удаляем старую кнопку копирования если есть
-      const oldButton = document.querySelector('.copy-button');
-      if (oldButton) {
-        oldButton.remove();
-      }
+      indicator.className = `status-indicator status-${type}`;
+      indicator.textContent = message;
       
       if (type === 'error') {
-        indicator.textContent = message;
-        
-        // создаем кнопку копирования прямо после блока ошибки
-        const copyButton = document.createElement('button');
+        // показываем кнопку копирования
         copyButton.className = 'copy-button';
-        copyButton.textContent = 'Копировать ошибку';
         copyButton.onclick = () => copyErrorText(message, copyButton);
-        
-        // вставляем кнопку сразу после индикатора статуса
-        indicator.parentNode.insertBefore(copyButton, indicator.nextSibling);
       } else {
-        indicator.textContent = message;
+        // скрываем кнопку копирования
+        copyButton.className = 'copy-button status-hidden';
       }
     }
 
     function hideStatus() {
       const indicator = document.getElementById('status-indicator');
-      indicator.className = 'status-indicator status-hidden';
+      const copyButton = document.getElementById('copy-button');
       
-      // удаляем кнопку копирования если есть
-      const copyButton = document.querySelector('.copy-button');
-      if (copyButton) {
-        copyButton.remove();
-      }
+      indicator.className = 'status-indicator status-hidden';
+      copyButton.className = 'copy-button status-hidden';
     }
 
     async function copyErrorText(text, button) {
