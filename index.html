@@ -231,27 +231,31 @@
 				const captcha = document.querySelector('.h-captcha');
 				if (captcha) captcha.setAttribute('data-theme', theme);
 			}
+			// для turnstile нужно перерендерить капчу при смене темы
+			if (platform === 'tg' && window.turnstile) {
+				insertTelegramCaptcha();
+			}
 		}
 
 		function insertTelegramCaptcha() {
 			const container = document.getElementById('captcha-container');
-			container.innerHTML = `<div id="recaptcha-el"></div>`;
+			container.innerHTML = `<div id="turnstile-el"></div>`;
 
-			const existingScript = document.querySelector('script[src*="recaptcha"]');
+			const existingScript = document.querySelector('script[src*="turnstile"]');
 			if (existingScript) existingScript.remove();
 
 			const script = document.createElement('script');
-			script.src = 'https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoaded&render=explicit';
+			script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoaded&render=explicit';
 			script.async = true;
 			script.defer = true;
 			document.head.appendChild(script);
 		}
 
-		function onRecaptchaLoaded() {
-			grecaptcha.render('recaptcha-el', {
-				sitekey: '6LerHJUrAAAAAOBToNOvkY4Qtf09c4202uM8xLDW',
+		function onTurnstileLoaded() {
+			turnstile.render('#turnstile-el', {
+				sitekey: '0x4AAAAAABvVfFdKvgN--jG6',
 				callback: onCaptchaSuccess,
-				theme: theme
+				theme: theme === 'dark' ? 'dark' : 'light'
 			});
 		}
 
