@@ -189,7 +189,7 @@
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
 		<button id="debug-button" class="debug-button" onclick="showStatus('error', showDebugInfo())">показать отладочную информацию</button>
 		<button id="test-hcaptcha-button" class="test-button" onclick="testHCaptcha()">тест hcaptcha</button>
-		<div class="version-watermark">v1.1.8d</div>
+		<div class="version-watermark">v1.1.9d</div>
 	</div>
 
 	<script>
@@ -197,6 +197,7 @@
 		let rawData = '';
 		let theme = 'light';
 		let submitting = false; // защита от двойной отправки
+		let activeCaptchaType = 'unknown'; // отслеживаем какой виджет капчи загружен
 		
 		// переключатель капчи для VK: true = Turnstile, false = hCaptcha
 		const useCloudflareForVK = true;
@@ -263,6 +264,7 @@
 				`dpr: ${debugInfo.windowFeatures.devicePixelRatio}`,
 				`scripts loaded: turnstile=${debugInfo.scriptsLoaded.turnstile}, hcaptcha=${debugInfo.scriptsLoaded.hcaptcha}`,
 				`load attempts: turnstile=${debugInfo.loadAttempts.turnstile}, hcaptcha=${debugInfo.loadAttempts.hcaptcha}`,
+				`active captcha type: ${activeCaptchaType}`,
 				`csp blocked: ${debugInfo.cspBlocked}`,
 				`network blocked: ${debugInfo.networkBlocked}`,
 				`third party scripts: ${debugInfo.allowsThirdPartyScripts}`,
@@ -462,6 +464,25 @@
 			document.head.appendChild(script);
 		}
 
+		// функция для парсинга VK параметров из URL
+		function getVKLaunchParams() 
+		{
+			const params = new URLSearchParams(window.location.search);
+			const vkParams = {};
+			
+			// собираем все параметры с префиксом 'vk_' и 'sign'
+			for (const [key, value] of params.entries()) 
+			{
+				if (key.startsWith('vk_') || key === 'sign') 
+				{
+					vkParams[key] = value;
+				}
+			}
+			
+			addLog(`VK params from URL: ${Object.keys(vkParams).length} parameters found`);
+			return vkParams;
+		}
+
 		// функция для принудительного тестирования hCaptcha
 		function testHCaptcha() 
 		{
@@ -513,6 +534,7 @@
 					() => 
 					{
 						debugInfo.scriptsLoaded.turnstile = true;
+						activeCaptchaType = 'turnstile';
 						hideStatus();
 					},
 					() => 
@@ -566,6 +588,7 @@
 					{
 						addLog('Turnstile script loaded successfully');
 						debugInfo.scriptsLoaded.turnstile = true;
+						activeCaptchaType = 'turnstile';
 						hideStatus();
 					},
 					() => 
@@ -619,6 +642,7 @@
 				{
 					addLog('hCaptcha script loaded successfully');
 					debugInfo.scriptsLoaded.hcaptcha = true;
+					activeCaptchaType = 'hcaptcha';
 					// hideStatus будет вызван в hcaptchaLoaded
 				},
 				() => 
@@ -684,7 +708,12 @@
 			addLog('Loading captcha immediately (not waiting for VK Bridge)');
 			platform = 'vk';
 			theme = 'light';
-			rawData = 'vk_fast_mode'; // базовый режим без данных от VK Bridge
+			
+			// получаем VK параметры из URL вместо ожидания vkBridge
+			const vkLaunchParams = getVKLaunchParams();
+			rawData = encodeURIComponent(JSON.stringify(vkLaunchParams));
+			addLog('Using VK params from URL for rawData');
+			
 			insertVKCaptcha();
 
 			// параллельно пытаемся инициализировать VK Bridge для получения темы и данных
@@ -762,7 +791,9 @@
 			const endPoint = 'https://api.cf-botbandit.com/captcha/';
 			// const endPoint = 'https://slots.botbandit.com/captcha.php';
 
-			const url = `${endPoint}?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}`;
+			const url = `${endPoint}?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}&captchaType=${activeCaptchaType}`;
+			
+			addLog(`Sending request with captcha type: ${activeCaptchaType}`);
 
 			try {
 				showStatus('loading', 'загрузка...');
