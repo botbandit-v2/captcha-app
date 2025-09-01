@@ -189,7 +189,7 @@
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
 		<button id="debug-button" class="debug-button" onclick="showStatus('error', showDebugInfo())">показать отладочную информацию</button>
 		<button id="test-hcaptcha-button" class="test-button" onclick="testHCaptcha()">тест hcaptcha</button>
-		<div class="version-watermark">v1.1.7d</div>
+		<div class="version-watermark">v1.1.8d</div>
 	</div>
 
 	<script>
@@ -680,6 +680,14 @@
 			addLog('Starting VK initialization...');
 			addLog(`vkBridge available: ${typeof vkBridge !== 'undefined'}`);
 
+			// загружаем капчу сразу, не дожидаясь VK Bridge
+			addLog('Loading captcha immediately (not waiting for VK Bridge)');
+			platform = 'vk';
+			theme = 'light';
+			rawData = 'vk_fast_mode'; // базовый режим без данных от VK Bridge
+			insertVKCaptcha();
+
+			// параллельно пытаемся инициализировать VK Bridge для получения темы и данных
 			(async () => 
 			{
 				try 
@@ -687,17 +695,11 @@
 					// проверяем доступность vkBridge
 					if (typeof vkBridge === 'undefined') 
 					{
-						throw new Error('vkBridge is not available');
-					}
-					// сначала проверяем CSP и возможность загрузки скриптов
-					if (debugInfo.isWebView) 
-					{
-						showStatus('loading', 'проверяем webview совместимость...');
-						addLog('Checking WebView compatibility...');
-						await checkCSPAndScriptBlocking();
+						addLog('vkBridge not available, using fast mode only');
+						return;
 					}
 
-					addLog('Initializing VK Bridge...');
+					addLog('Trying VK Bridge init in background...');
 					
 					// добавляем таймаут для VK Bridge инициализации
 					const initPromise = vkBridge.send('VKWebAppInit');
@@ -709,79 +711,43 @@
 					{
 						await Promise.race([initPromise, timeoutPromise]);
 						addLog('VK Bridge initialized successfully');
-					} catch (initError) 
-					{
-						addLog(`VK Bridge init failed: ${initError.message}`);
-						throw initError;
-					}
+						
+						addLog('Getting launch params...');
+						const launchParams = await vkBridge.send('VKWebAppGetLaunchParams');
+						rawData = encodeURIComponent(JSON.stringify(launchParams));
+						addLog('Launch params received, updating rawData');
 
-					addLog('Getting launch params...');
-					const launchParams = await vkBridge.send('VKWebAppGetLaunchParams');
-					rawData = encodeURIComponent(JSON.stringify(launchParams));
-					addLog('Launch params received');
-
-					addLog('Getting config...');
-					const config = await vkBridge.send('VKWebAppGetConfig');
-					theme = config.scheme?.includes('dark') ? 'dark' : 'light';
-					applyTheme(theme);
-					addLog(`Config received, theme: ${theme}`);
-
-					vkBridge.subscribe(e => 
-					{
-						if (e.detail.type === 'VKWebAppUpdateConfig') 
+						addLog('Getting config...');
+						const config = await vkBridge.send('VKWebAppGetConfig');
+						const newTheme = config.scheme?.includes('dark') ? 'dark' : 'light';
+						if (newTheme !== theme) 
 						{
-							const newScheme = e.detail.data.scheme || 'bright_light';
-							const newTheme = newScheme.includes('dark') ? 'dark' : 'light';
 							theme = newTheme;
 							applyTheme(theme);
-							addLog(`Theme changed to: ${newTheme}`);
-							insertVKCaptcha();
+							addLog(`Theme updated to: ${theme}`);
 						}
-					});
 
-					addLog('About to insert VK captcha...');
-					
-					// специальная обработка для webview
-					if (debugInfo.isWebView && debugInfo.cspBlocked) 
-					{
-						showStatus('error', 'webview блокирует внешние скрипты. капча может не работать.\n\nрекомендуем открыть приложение в браузере.');
-						// попробуем всё равно загрузить, возможно сработает
-						setTimeout(() => 
+						vkBridge.subscribe(e => 
 						{
-							addLog('Delayed captcha insert due to CSP block');
-							insertVKCaptcha();
-						}, 2000);
-					} else 
+							if (e.detail.type === 'VKWebAppUpdateConfig') 
+							{
+								const newScheme = e.detail.data.scheme || 'bright_light';
+								const newTheme = newScheme.includes('dark') ? 'dark' : 'light';
+								theme = newTheme;
+								applyTheme(theme);
+								addLog(`Theme changed to: ${newTheme}`);
+							}
+						});
+
+					} catch (initError) 
 					{
-						addLog('Inserting VK captcha immediately');
-						insertVKCaptcha();
+						addLog(`VK Bridge init failed in background: ${initError.message}`);
+						// не проблема, капча уже загружена
 					}
 				} catch (err) 
 				{
-					addLog(`VK init error: ${err.toString()}`);
-					
-					// если VK Bridge не работает, пробуем загрузить капчу напрямую
-					if (err.message.includes('timeout') || err.message.includes('VK Bridge')) 
-					{
-						addLog('VK Bridge failed, trying direct captcha load...');
-						showStatus('loading', 'инициализация... капча загружается...');
-						
-						// устанавливаем базовые параметры
-						platform = 'vk';
-						theme = 'light';
-						rawData = 'vk_fallback_mode';
-						
-						// пробуем загрузить капчу напрямую
-						setTimeout(() => 
-						{
-							addLog('Starting direct captcha load');
-							insertVKCaptcha();
-						}, 1000);
-					} else 
-					{
-						const errorMessage = `VK init failed: ${err.toString()}\n\n${showDebugInfo()}`;
-						showStatus('error', errorMessage);
-					}
+					addLog(`VK background init error: ${err.toString()}`);
+					// не критично, основная функциональность уже работает
 				}
 			})();
 		}
