@@ -189,7 +189,7 @@
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
 		<button id="debug-button" class="debug-button" onclick="showStatus('error', showDebugInfo())">показать отладочную информацию</button>
 		<button id="test-hcaptcha-button" class="test-button" onclick="testHCaptcha()">тест hcaptcha</button>
-		<div class="version-watermark">v1.1.10d</div>
+		<div class="version-watermark">v1.1.11d</div>
 	</div>
 
 	<script>
@@ -198,6 +198,8 @@
 		let theme = 'light';
 		let submitting = false; // защита от двойной отправки
 		let activeCaptchaType = 'unknown'; // отслеживаем какой виджет капчи загружен
+		let captchaInitialized = false; // защита от повторной инициализации
+		let captchaRenderTimeout = null; // таймаут для проверки рендеринга
 		
 		// переключатель капчи для VK: true = Turnstile, false = hCaptcha
 		const useCloudflareForVK = true;
@@ -572,7 +574,15 @@
 
 		function insertVKCaptcha() 
 		{
+			// защита от повторных вызовов
+			if (captchaInitialized) 
+			{
+				addLog('Captcha already initialized, skipping...');
+				return;
+			}
+			
 			addLog(`insertVKCaptcha called, useCloudflareForVK: ${useCloudflareForVK}`);
+			captchaInitialized = true;
 			
 			if (useCloudflareForVK) 
 			{
@@ -627,6 +637,12 @@
 										addLog('Rendering Turnstile widget with API...');
 										window.turnstile.render(container);
 										addLog('Turnstile widget rendered successfully');
+										// отменяем таймаут проверки, т.к. рендеринг прошёл успешно
+										if (captchaRenderTimeout) 
+										{
+											clearTimeout(captchaRenderTimeout);
+											captchaRenderTimeout = null;
+										}
 									} catch (e) 
 									{
 										addLog(`Turnstile render error: ${e.message}`);
@@ -634,6 +650,7 @@
 										if (debugInfo.isIOS) 
 										{
 											addLog('Switching to hCaptcha due to iOS Turnstile render failure');
+											captchaInitialized = false; // сбрасываем флаг
 											setTimeout(() => insertVKHCaptcha(), 500);
 										}
 									}
@@ -644,6 +661,7 @@
 									if (debugInfo.isIOS) 
 									{
 										addLog('Switching to hCaptcha due to missing Turnstile container on iOS');
+										captchaInitialized = false; // сбрасываем флаг
 										setTimeout(() => insertVKHCaptcha(), 500);
 									}
 								}
@@ -654,24 +672,32 @@
 								if (debugInfo.isIOS) 
 								{
 									addLog('Switching to hCaptcha due to unavailable Turnstile API on iOS');
+									captchaInitialized = false; // сбрасываем флаг
 									setTimeout(() => insertVKHCaptcha(), 500);
 								}
 							}
 						}, 100);
 						
-						// дополнительная проверка через 2 секунды - рендерился ли виджет
-						setTimeout(() => 
+						// отменяем предыдущий таймаут если есть
+						if (captchaRenderTimeout) 
 						{
-							const widget = document.querySelector('.cf-turnstile iframe');
-							if (!widget && debugInfo.isIOS) 
+							clearTimeout(captchaRenderTimeout);
+						}
+						
+						// дополнительная проверка через 3 секунды - рендерился ли виджет
+						captchaRenderTimeout = setTimeout(() => 
+						{
+							const widget = document.querySelector('.cf-turnstile iframe') || document.querySelector('.cf-turnstile div[data-sitekey]');
+							if (!widget && debugInfo.isIOS && activeCaptchaType !== 'hcaptcha') 
 							{
-								addLog('Turnstile widget not rendered after 2 seconds on iOS, switching to hCaptcha');
+								addLog('Turnstile widget not rendered after 3 seconds on iOS, switching to hCaptcha');
+								captchaInitialized = false; // сбрасываем флаг чтобы разрешить hCaptcha
 								insertVKHCaptcha();
 							} else if (widget) 
 							{
-								addLog('Turnstile widget successfully rendered');
+								addLog('Turnstile widget successfully rendered and visible');
 							}
-						}, 2000);
+						}, 3000);
 						
 						hideStatus();
 					},
@@ -683,6 +709,7 @@
 						if (debugInfo.isWebView || debugInfo.isAndroid) 
 						{
 							addLog('Switching to hCaptcha due to failure');
+							captchaInitialized = false; // сбрасываем флаг
 							showStatus('loading', 'turnstile заблокирован, переключаемся на hcaptcha...');
 							setTimeout(() => insertVKHCaptcha(), 1000);
 						} else 
