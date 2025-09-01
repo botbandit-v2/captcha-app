@@ -139,6 +139,28 @@
 			margin: 0;
 			padding: 0;
 		}
+
+		.debug-button {
+			background: rgba(108, 117, 125, 0.1);
+			color: #6c757d;
+			border: 1px solid rgba(108, 117, 125, 0.3);
+			border-radius: 6px;
+			padding: 8px 12px;
+			font-size: 10px;
+			cursor: pointer;
+			font-family: monospace;
+			margin-top: 8px;
+			text-align: center;
+			transition: all 0.2s ease;
+		}
+
+		.debug-button:hover {
+			background: rgba(108, 117, 125, 0.2);
+		}
+
+		.debug-button:active {
+			background: rgba(108, 117, 125, 0.3);
+		}
 	</style>
 </head>
 
@@ -147,7 +169,8 @@
 		<div id="captcha-container"></div>
 		<div id="status-indicator" class="status-indicator status-hidden"></div>
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
-		<div class="version-watermark">v1.1.1</div>
+		<button id="debug-button" class="debug-button" onclick="showStatus('error', showDebugInfo())">показать отладочную информацию</button>
+		<div class="version-watermark">v1.1.2d</div>
 	</div>
 
 	<script>
@@ -158,18 +181,68 @@
 		
 		// переключатель капчи для VK: true = Turnstile, false = hCaptcha
 		const useCloudflareForVK = true;
+		
+		// отладочная информация о среде выполнения
+		const debugInfo = 
+		{
+			userAgent: navigator.userAgent,
+			isWebView: /wv/.test(navigator.userAgent) || /WebView/.test(navigator.userAgent),
+			isVKApp: /VKApp/.test(navigator.userAgent),
+			isAndroid: /Android/.test(navigator.userAgent),
+			isIOS: /iPhone|iPad|iPod/.test(navigator.userAgent),
+			platform: window.location.href.includes('vk.com') ? 'vk' : 'unknown',
+			windowFeatures: {
+				width: window.innerWidth,
+				height: window.innerHeight,
+				devicePixelRatio: window.devicePixelRatio
+			},
+			allowsThirdPartyScripts: true, // будем проверять позже
+			cspBlocked: false,
+			scriptsLoaded: {
+				turnstile: false,
+				hcaptcha: false
+			}
+		};
 
-		function showStatus(type, message) {
+		function showDebugInfo() 
+		{
+			const debugText = [
+				'=== ОТЛАДОЧНАЯ ИНФОРМАЦИЯ ===',
+				`user agent: ${debugInfo.userAgent}`,
+				`webview: ${debugInfo.isWebView}`,
+				`vk app: ${debugInfo.isVKApp}`,
+				`android: ${debugInfo.isAndroid}`,
+				`ios: ${debugInfo.isIOS}`,
+				`window: ${debugInfo.windowFeatures.width}x${debugInfo.windowFeatures.height}`,
+				`dpr: ${debugInfo.windowFeatures.devicePixelRatio}`,
+				`scripts loaded: turnstile=${debugInfo.scriptsLoaded.turnstile}, hcaptcha=${debugInfo.scriptsLoaded.hcaptcha}`,
+				`csp blocked: ${debugInfo.cspBlocked}`,
+				`third party scripts: ${debugInfo.allowsThirdPartyScripts}`,
+				'================================'
+			].join('\n');
+			return debugText;
+		}
+
+		function showStatus(type, message) 
+		{
 			const indicator = document.getElementById('status-indicator');
 			const copyButton = document.getElementById('copy-button');
+
+			// добавляем отладочную информацию к ошибкам в webview
+			if (type === 'error' && debugInfo.isWebView) 
+			{
+				message = message + '\n\n' + showDebugInfo();
+			}
 
 			indicator.className = `status-indicator status-${type}`;
 			indicator.textContent = message;
 
-			if (type === 'error') {
+			if (type === 'error') 
+			{
 				copyButton.className = 'copy-button';
 				copyButton.onclick = () => copyErrorText(message, copyButton);
-			} else {
+			} else 
+			{
 				copyButton.className = 'copy-button status-hidden';
 			}
 		}
@@ -223,6 +296,85 @@
 			}
 		}
 
+		// проверка CSP и блокировки скриптов
+		function checkCSPAndScriptBlocking() 
+		{
+			return new Promise((resolve) => 
+			{
+				// тестируем загрузку внешнего скрипта
+				const testScript = document.createElement('script');
+				testScript.src = 'data:text/javascript;base64,'; // пустой data URI
+				testScript.onload = () => 
+				{
+					debugInfo.allowsThirdPartyScripts = true;
+					debugInfo.cspBlocked = false;
+					resolve();
+				};
+				testScript.onerror = () => 
+				{
+					debugInfo.allowsThirdPartyScripts = false;
+					debugInfo.cspBlocked = true;
+					resolve();
+				};
+				
+				// таймаут для случая, когда скрипт молча блокируется
+				setTimeout(() => 
+				{
+					debugInfo.allowsThirdPartyScripts = false;
+					debugInfo.cspBlocked = true;
+					resolve();
+				}, 2000);
+				
+				document.head.appendChild(testScript);
+			});
+		}
+
+		// функция для безопасной загрузки скриптов с фолбэками
+		function loadScriptWithFallback(src, onLoad, onError) 
+		{
+			const script = document.createElement('script');
+			script.async = true;
+			script.defer = true;
+			
+			let loaded = false;
+			let timeoutId;
+			
+			const cleanup = () => 
+			{
+				if (timeoutId) clearTimeout(timeoutId);
+				script.onload = null;
+				script.onerror = null;
+			};
+			
+			script.onload = () => 
+			{
+				if (loaded) return;
+				loaded = true;
+				cleanup();
+				if (onLoad) onLoad();
+			};
+			
+			script.onerror = () => 
+			{
+				if (loaded) return;
+				loaded = true;
+				cleanup();
+				if (onError) onError();
+			};
+			
+			// таймаут для webview, где скрипты могут блокироваться молча
+			timeoutId = setTimeout(() => 
+			{
+				if (loaded) return;
+				loaded = true;
+				cleanup();
+				if (onError) onError();
+			}, 10000);
+			
+			script.src = src;
+			document.head.appendChild(script);
+		}
+
 		const isTelegram = window.Telegram?.WebApp?.initData;
 		const isVK = !isTelegram;
 
@@ -242,7 +394,8 @@
 			}
 		}
 
-		function insertTelegramCaptcha() {
+		function insertTelegramCaptcha() 
+		{
 			const container = document.getElementById('captcha-container');
 			container.innerHTML = `
 				<div class="cf-turnstile" 
@@ -253,12 +406,22 @@
 			`;
 
 			const existingScript = document.querySelector('script[src*="turnstile"]');
-			if (!existingScript) {
-				const script = document.createElement('script');
-				script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
-				script.async = true;
-				script.defer = true;
-				document.head.appendChild(script);
+			if (!existingScript) 
+			{
+				showStatus('loading', 'загружается turnstile...');
+				loadScriptWithFallback(
+					'https://challenges.cloudflare.com/turnstile/v0/api.js',
+					() => 
+					{
+						debugInfo.scriptsLoaded.turnstile = true;
+						hideStatus();
+					},
+					() => 
+					{
+						debugInfo.scriptsLoaded.turnstile = false;
+						showStatus('error', 'не удалось загрузить turnstile скрипт. возможно заблокирован в webview.');
+					}
+				);
 			}
 		}
 
@@ -270,7 +433,8 @@
 			}
 		}
 		
-		function insertVKTurnstileCaptcha() {
+		function insertVKTurnstileCaptcha() 
+		{
 			const container = document.getElementById('captcha-container');
 			container.innerHTML = `
 				<div class="cf-turnstile" 
@@ -281,16 +445,35 @@
 			`;
 			
 			const existingScript = document.querySelector('script[src*="turnstile"]');
-			if (!existingScript) {
-				const script = document.createElement('script');
-				script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
-				script.async = true;
-				script.defer = true;
-				document.head.appendChild(script);
+			if (!existingScript) 
+			{
+				showStatus('loading', 'загружается turnstile для vk...');
+				loadScriptWithFallback(
+					'https://challenges.cloudflare.com/turnstile/v0/api.js',
+					() => 
+					{
+						debugInfo.scriptsLoaded.turnstile = true;
+						hideStatus();
+					},
+					() => 
+					{
+						debugInfo.scriptsLoaded.turnstile = false;
+						// если turnstile не загрузился в VK, переключаемся на hCaptcha
+						if (debugInfo.isWebView) 
+						{
+							showStatus('loading', 'turnstile заблокирован, переключаемся на hcaptcha...');
+							setTimeout(() => insertVKHCaptcha(), 1000);
+						} else 
+						{
+							showStatus('error', 'не удалось загрузить turnstile скрипт.');
+						}
+					}
+				);
 			}
 		}
 		
-		function insertVKHCaptcha() {
+		function insertVKHCaptcha() 
+		{
 			const container = document.getElementById('captcha-container');
 			container.innerHTML = `
         <div class="h-captcha" 
@@ -302,17 +485,38 @@
 			const existingScript = document.querySelector('script[src*="hcaptcha"]');
 			if (existingScript) existingScript.remove();
 
-			const script = document.createElement('script');
-			script.src = 'https://hcaptcha.com/1/api.js?hl=ru&onload=hcaptchaLoaded';
-			script.async = true;
-			script.defer = true;
-			document.head.appendChild(script);
+			showStatus('loading', 'загружается hcaptcha...');
+			loadScriptWithFallback(
+				'https://hcaptcha.com/1/api.js?hl=ru&onload=hcaptchaLoaded',
+				() => 
+				{
+					debugInfo.scriptsLoaded.hcaptcha = true;
+					// hideStatus будет вызван в hcaptchaLoaded
+				},
+				() => 
+				{
+					debugInfo.scriptsLoaded.hcaptcha = false;
+					showStatus('error', 'не удалось загрузить hcaptcha скрипт. возможно заблокирован в webview.');
+				}
+			);
 		}
 
-		function hcaptchaLoaded() {
+		function hcaptchaLoaded() 
+		{
 			const container = document.querySelector('.h-captcha');
-			if (container && window.hcaptcha) {
-				window.hcaptcha.render(container);
+			if (container && window.hcaptcha) 
+			{
+				try 
+				{
+					window.hcaptcha.render(container);
+					hideStatus();
+				} catch (e) 
+				{
+					showStatus('error', `hcaptcha render error: ${e.message}`);
+				}
+			} else 
+			{
+				showStatus('error', 'hcaptcha загружен, но не найден контейнер или объект hcaptcha');
 			}
 		}
 
@@ -332,11 +536,21 @@
 			applyTheme(theme);
 			insertTelegramCaptcha();
 
-		} else if (isVK) {
+		} else if (isVK) 
+		{
 			platform = 'vk';
 
-			(async () => {
-				try {
+			(async () => 
+			{
+				try 
+				{
+					// сначала проверяем CSP и возможность загрузки скриптов
+					if (debugInfo.isWebView) 
+					{
+						showStatus('loading', 'проверяем webview совместимость...');
+						await checkCSPAndScriptBlocking();
+					}
+
 					await vkBridge.send('VKWebAppInit');
 					const launchParams = await vkBridge.send('VKWebAppGetLaunchParams');
 					rawData = encodeURIComponent(JSON.stringify(launchParams));
@@ -345,8 +559,10 @@
 					theme = config.scheme?.includes('dark') ? 'dark' : 'light';
 					applyTheme(theme);
 
-					vkBridge.subscribe(e => {
-						if (e.detail.type === 'VKWebAppUpdateConfig') {
+					vkBridge.subscribe(e => 
+					{
+						if (e.detail.type === 'VKWebAppUpdateConfig') 
+						{
 							const newScheme = e.detail.data.scheme || 'bright_light';
 							const newTheme = newScheme.includes('dark') ? 'dark' : 'light';
 							theme = newTheme;
@@ -355,11 +571,21 @@
 						}
 					});
 
-					insertVKCaptcha();
-				} catch (err) {
-					console.error('[VK] Ошибка инициализации:', err);
-					document.body.innerHTML += '<pre style="color: red">VK init failed:\n' + err.toString() + '</pre>';
-					alert('VK Mini App не смог загрузиться. Проверь подключение и запусти через VK.');
+					// специальная обработка для webview
+					if (debugInfo.isWebView && debugInfo.cspBlocked) 
+					{
+						showStatus('error', 'webview блокирует внешние скрипты. капча может не работать.\n\nрекомендуем открыть приложение в браузере.');
+						// попробуем всё равно загрузить, возможно сработает
+						setTimeout(() => insertVKCaptcha(), 2000);
+					} else 
+					{
+						insertVKCaptcha();
+					}
+				} catch (err) 
+				{
+					console.error('[VK] ошибка инициализации:', err);
+					const errorMessage = `VK init failed: ${err.toString()}\n\n${showDebugInfo()}`;
+					showStatus('error', errorMessage);
 				}
 			})();
 		}
