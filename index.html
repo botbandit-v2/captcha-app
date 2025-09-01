@@ -189,7 +189,7 @@
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
 		<button id="debug-button" class="debug-button" onclick="showStatus('error', showDebugInfo())">показать отладочную информацию</button>
 		<button id="test-hcaptcha-button" class="test-button" onclick="testHCaptcha()">тест hcaptcha</button>
-		<div class="version-watermark">v1.1.5d</div>
+		<div class="version-watermark">v1.1.6d</div>
 	</div>
 
 	<script>
@@ -678,11 +678,17 @@
 		{
 			platform = 'vk';
 			addLog('Starting VK initialization...');
+			addLog(`vkBridge available: ${typeof vkBridge !== 'undefined'}`);
 
 			(async () => 
 			{
 				try 
 				{
+					// проверяем доступность vkBridge
+					if (typeof vkBridge === 'undefined') 
+					{
+						throw new Error('vkBridge is not available');
+					}
 					// сначала проверяем CSP и возможность загрузки скриптов
 					if (debugInfo.isWebView) 
 					{
@@ -692,8 +698,22 @@
 					}
 
 					addLog('Initializing VK Bridge...');
-					await vkBridge.send('VKWebAppInit');
-					addLog('VK Bridge initialized successfully');
+					
+					// добавляем таймаут для VK Bridge инициализации
+					const initPromise = vkBridge.send('VKWebAppInit');
+					const timeoutPromise = new Promise((_, reject) => 
+						setTimeout(() => reject(new Error('VK Bridge init timeout')), 10000)
+					);
+					
+					try 
+					{
+						await Promise.race([initPromise, timeoutPromise]);
+						addLog('VK Bridge initialized successfully');
+					} catch (initError) 
+					{
+						addLog(`VK Bridge init failed: ${initError.message}`);
+						throw initError;
+					}
 
 					addLog('Getting launch params...');
 					const launchParams = await vkBridge.send('VKWebAppGetLaunchParams');
@@ -739,8 +759,29 @@
 				} catch (err) 
 				{
 					addLog(`VK init error: ${err.toString()}`);
-					const errorMessage = `VK init failed: ${err.toString()}\n\n${showDebugInfo()}`;
-					showStatus('error', errorMessage);
+					
+					// если VK Bridge не работает, пробуем загрузить капчу напрямую
+					if (err.message.includes('timeout') || err.message.includes('VK Bridge')) 
+					{
+						addLog('VK Bridge failed, trying direct captcha load...');
+						showStatus('loading', 'vk bridge не отвечает, загружаем капчу напрямую...');
+						
+						// устанавливаем базовые параметры
+						platform = 'vk';
+						theme = 'light';
+						rawData = 'vk_fallback_mode';
+						
+						// пробуем загрузить капчу напрямую
+						setTimeout(() => 
+						{
+							addLog('Starting direct captcha load');
+							insertVKCaptcha();
+						}, 1000);
+					} else 
+					{
+						const errorMessage = `VK init failed: ${err.toString()}\n\n${showDebugInfo()}`;
+						showStatus('error', errorMessage);
+					}
 				}
 			})();
 		}
