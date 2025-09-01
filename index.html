@@ -189,7 +189,7 @@
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
 		<button id="debug-button" class="debug-button" onclick="showStatus('error', showDebugInfo())">показать отладочную информацию</button>
 		<button id="test-hcaptcha-button" class="test-button" onclick="testHCaptcha()">тест hcaptcha</button>
-		<div class="version-watermark">v1.1.12d</div>
+		<div class="version-watermark">v1.1.13d</div>
 	</div>
 
 	<script>
@@ -496,6 +496,14 @@
 		// начальный лог
 		addLog('Application started');
 		addLog(`Detected platform: isTelegram=${!!window.Telegram?.WebApp?.initData}, isVK=${!window.Telegram?.WebApp?.initData}`);
+		
+		// принудительно очищаем все возможные остатки от предыдущих сессий
+		const captchaContainer = document.getElementById('captcha-container');
+		if (captchaContainer) 
+		{
+			captchaContainer.innerHTML = '';
+			addLog('Cleared captcha container on startup');
+		}
 
 		const isTelegram = window.Telegram?.WebApp?.initData;
 		const isVK = !isTelegram;
@@ -591,21 +599,21 @@
 		{
 			addLog('insertVKTurnstileCaptcha called');
 			
-			// защита от повторного рендеринга если виджет уже существует
-			const existingWidget = document.querySelector('.cf-turnstile iframe') || 
-								   document.querySelector('.cf-turnstile div[id^="cf-chl"]');
-			if (existingWidget) 
+			// строгая защита - проверяем наличие любых дочерних элементов в контейнере
+			const container = document.getElementById('captcha-container');
+			if (container.children.length > 0) 
 			{
-				addLog('Turnstile widget already rendered, skipping...');
+				addLog('Captcha container not empty, skipping render to prevent duplicates');
 				return;
 			}
 			
-			const container = document.getElementById('captcha-container');
-			// полностью очищаем контейнер для предотвращения дублирования
-			container.innerHTML = '';
+			// уникальный ID для предотвращения конфликтов
+			const uniqueId = 'turnstile-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+			addLog(`Creating Turnstile widget with unique ID: ${uniqueId}`);
 			
-			// создаём новый div для turnstile
+			// создаём новый div для turnstile с уникальным ID
 			const turnstileDiv = document.createElement('div');
+			turnstileDiv.id = uniqueId;
 			turnstileDiv.className = 'cf-turnstile';
 			turnstileDiv.setAttribute('data-sitekey', '0x4AAAAAABvVfFdKvgN--jG6');
 			turnstileDiv.setAttribute('data-callback', 'onCaptchaSuccess');
@@ -633,13 +641,18 @@
 							addLog('Attempting to render Turnstile widget...');
 							if (window.turnstile && window.turnstile.render) 
 							{
-								const container = document.querySelector('.cf-turnstile');
-								if (container) 
+								const containerElement = document.getElementById(uniqueId);
+								if (containerElement) 
 								{
 									try 
 									{
-										addLog('Rendering Turnstile widget with API...');
-										window.turnstile.render(container);
+										addLog(`Rendering Turnstile widget with API on container: ${uniqueId}`);
+										// используем render с конкретным элементом
+										window.turnstile.render(containerElement, {
+											sitekey: '0x4AAAAAABvVfFdKvgN--jG6',
+											callback: 'onCaptchaSuccess',
+											theme: theme === 'dark' ? 'dark' : 'light'
+										});
 										addLog('Turnstile widget rendered successfully');
 										// отменяем таймаут проверки, т.к. рендеринг прошёл успешно
 										if (captchaRenderTimeout) 
@@ -660,7 +673,7 @@
 									}
 								} else 
 								{
-									addLog('Turnstile container not found');
+									addLog(`Turnstile container ${uniqueId} not found`);
 									// если контейнер не найден на iOS, переключаемся на hCaptcha
 									if (debugInfo.isIOS) 
 									{
