@@ -189,7 +189,7 @@
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
 		<button id="debug-button" class="debug-button" onclick="showStatus('error', showDebugInfo())">показать отладочную информацию</button>
 		<button id="test-hcaptcha-button" class="test-button" onclick="testHCaptcha()">тест hcaptcha</button>
-		<div class="version-watermark">v1.1.14d</div>
+		<div class="version-watermark">v1.1.15d</div>
 	</div>
 
 	<script>
@@ -551,7 +551,7 @@
 										addLog('Rendering Turnstile widget with API for Telegram...');
 										window.turnstile.render(container, {
 											sitekey: '0x4AAAAAABvVfFdKvgN--jG6',
-											callback: 'onCaptchaSuccess',
+											callback: onCaptchaSuccess,
 											theme: theme === 'dark' ? 'dark' : 'light'
 										});
 										addLog('Turnstile widget rendered successfully');
@@ -652,7 +652,7 @@
 										// используем render с конкретным элементом
 										window.turnstile.render(containerElement, {
 											sitekey: '0x4AAAAAABvVfFdKvgN--jG6',
-											callback: 'onCaptchaSuccess',
+											callback: onCaptchaSuccess,
 											theme: theme === 'dark' ? 'dark' : 'light'
 										});
 										addLog('Turnstile widget rendered successfully');
@@ -917,7 +917,12 @@
 		}
 
 		async function onCaptchaSuccess(token) {
-			if (submitting) return; // не шлём дубли
+			addLog(`onCaptchaSuccess called with token: ${token ? token.substring(0, 20) + '...' : 'null'}`);
+			
+			if (submitting) {
+				addLog('Already submitting, skipping duplicate');
+				return; // не шлём дубли
+			}
 			submitting = true;
 
 			showStatus('loading', 'проверяем капчу...');
