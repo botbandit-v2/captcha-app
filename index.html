@@ -189,7 +189,7 @@
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
 		<button id="debug-button" class="debug-button" onclick="showStatus('error', showDebugInfo())">показать отладочную информацию</button>
 		<button id="test-hcaptcha-button" class="test-button" onclick="testHCaptcha()">тест hcaptcha</button>
-		<div class="version-watermark">v1.1.6d</div>
+		<div class="version-watermark">v1.1.7d</div>
 	</div>
 
 	<script>
@@ -702,7 +702,7 @@
 					// добавляем таймаут для VK Bridge инициализации
 					const initPromise = vkBridge.send('VKWebAppInit');
 					const timeoutPromise = new Promise((_, reject) => 
-						setTimeout(() => reject(new Error('VK Bridge init timeout')), 10000)
+						setTimeout(() => reject(new Error('VK Bridge init timeout')), 3000)
 					);
 					
 					try 
@@ -764,7 +764,7 @@
 					if (err.message.includes('timeout') || err.message.includes('VK Bridge')) 
 					{
 						addLog('VK Bridge failed, trying direct captcha load...');
-						showStatus('loading', 'vk bridge не отвечает, загружаем капчу напрямую...');
+						showStatus('loading', 'инициализация... капча загружается...');
 						
 						// устанавливаем базовые параметры
 						platform = 'vk';
