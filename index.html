@@ -189,7 +189,7 @@
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
 		<button id="debug-button" class="debug-button" onclick="showStatus('error', showDebugInfo())">показать отладочную информацию</button>
 		<button id="test-hcaptcha-button" class="test-button" onclick="testHCaptcha()">тест hcaptcha</button>
-		<div class="version-watermark">v1.1.3d</div>
+		<div class="version-watermark">v1.1.5d</div>
 	</div>
 
 	<script>
@@ -229,8 +229,24 @@
 				turnstile: 0,
 				hcaptcha: 0
 			},
-			errors: []
+			errors: [],
+			logs: []
 		};
+
+		// функция для добавления логов 
+		function addLog(message) 
+		{
+			const timestamp = new Date().toISOString().substr(11, 12);
+			const logEntry = `[${timestamp}] ${message}`;
+			debugInfo.logs.push(logEntry);
+			console.log(`[DEBUG] ${message}`);
+			
+			// ограничиваем количество логов до 50
+			if (debugInfo.logs.length > 50) 
+			{
+				debugInfo.logs.shift();
+			}
+		}
 
 		function showDebugInfo() 
 		{
@@ -251,6 +267,9 @@
 				`network blocked: ${debugInfo.networkBlocked}`,
 				`third party scripts: ${debugInfo.allowsThirdPartyScripts}`,
 				`errors: ${debugInfo.errors.length > 0 ? debugInfo.errors.join('; ') : 'none'}`,
+				'',
+				'=== EXECUTION LOGS ===',
+				...(debugInfo.logs.length > 0 ? debugInfo.logs : ['no logs yet']),
 				'================================'
 			].join('\n');
 			return debugText;
@@ -411,7 +430,7 @@
 				if (loaded) return;
 				loaded = true;
 				cleanup();
-				console.log(`[DEBUG] Script loaded successfully: ${src}`);
+				addLog(`Script loaded successfully: ${src}`);
 				if (onLoad) onLoad();
 			};
 			
@@ -421,7 +440,7 @@
 				loaded = true;
 				cleanup();
 				const errorMsg = `Script load error: ${src}`;
-				console.error(`[DEBUG] ${errorMsg}`, error);
+				addLog(errorMsg);
 				debugInfo.errors.push(errorMsg);
 				if (onError) onError();
 			};
@@ -433,12 +452,12 @@
 				loaded = true;
 				cleanup();
 				const timeoutMsg = `Script load timeout: ${src}`;
-				console.error(`[DEBUG] ${timeoutMsg}`);
+				addLog(timeoutMsg);
 				debugInfo.errors.push(timeoutMsg);
 				if (onError) onError();
 			}, 15000); // увеличил таймаут до 15 секунд
 			
-			console.log(`[DEBUG] Loading script: ${src}`);
+			addLog(`Loading script: ${src}`);
 			script.src = src;
 			document.head.appendChild(script);
 		}
@@ -450,6 +469,10 @@
 			hideStatus();
 			insertVKHCaptcha();
 		}
+
+		// начальный лог
+		addLog('Application started');
+		addLog(`Detected platform: isTelegram=${!!window.Telegram?.WebApp?.initData}, isVK=${!window.Telegram?.WebApp?.initData}`);
 
 		const isTelegram = window.Telegram?.WebApp?.initData;
 		const isVK = !isTelegram;
@@ -502,16 +525,25 @@
 			}
 		}
 
-		function insertVKCaptcha() {
-			if (useCloudflareForVK) {
+		function insertVKCaptcha() 
+		{
+			addLog(`insertVKCaptcha called, useCloudflareForVK: ${useCloudflareForVK}`);
+			
+			if (useCloudflareForVK) 
+			{
+				addLog('Calling insertVKTurnstileCaptcha');
 				insertVKTurnstileCaptcha();
-			} else {
+			} else 
+			{
+				addLog('Calling insertVKHCaptcha');
 				insertVKHCaptcha();
 			}
 		}
 		
 		function insertVKTurnstileCaptcha() 
 		{
+			addLog('insertVKTurnstileCaptcha called');
+			
 			const container = document.getElementById('captcha-container');
 			container.innerHTML = `
 				<div class="cf-turnstile" 
@@ -522,22 +554,28 @@
 			`;
 			
 			const existingScript = document.querySelector('script[src*="turnstile"]');
+			addLog(`Existing turnstile script: ${existingScript ? 'found' : 'not found'}`);
+			
 			if (!existingScript) 
 			{
+				addLog('Loading turnstile script...');
 				showStatus('loading', 'загружается turnstile для vk...');
 				loadScriptWithFallback(
 					'https://challenges.cloudflare.com/turnstile/v0/api.js',
 					() => 
 					{
+						addLog('Turnstile script loaded successfully');
 						debugInfo.scriptsLoaded.turnstile = true;
 						hideStatus();
 					},
 					() => 
 					{
+						addLog('Turnstile script failed to load');
 						debugInfo.scriptsLoaded.turnstile = false;
 						// если turnstile не загрузился в VK, переключаемся на hCaptcha
 						if (debugInfo.isWebView || debugInfo.isAndroid) 
 						{
+							addLog('Switching to hCaptcha due to failure');
 							showStatus('loading', 'turnstile заблокирован, переключаемся на hcaptcha...');
 							setTimeout(() => insertVKHCaptcha(), 1000);
 						} else 
@@ -547,11 +585,17 @@
 					},
 					'turnstile'
 				);
+			} else 
+			{
+				addLog('Turnstile script already exists, skipping load');
+				hideStatus();
 			}
 		}
 		
 		function insertVKHCaptcha() 
 		{
+			addLog('insertVKHCaptcha called');
+			
 			const container = document.getElementById('captcha-container');
 			container.innerHTML = `
         <div class="h-captcha" 
@@ -561,18 +605,25 @@
         </div>`;
 
 			const existingScript = document.querySelector('script[src*="hcaptcha"]');
-			if (existingScript) existingScript.remove();
+			if (existingScript) 
+			{
+				addLog('Removing existing hCaptcha script');
+				existingScript.remove();
+			}
 
+			addLog('Loading hCaptcha script...');
 			showStatus('loading', 'загружается hcaptcha...');
 			loadScriptWithFallback(
 				'https://hcaptcha.com/1/api.js?hl=ru&onload=hcaptchaLoaded',
 				() => 
 				{
+					addLog('hCaptcha script loaded successfully');
 					debugInfo.scriptsLoaded.hcaptcha = true;
 					// hideStatus будет вызван в hcaptchaLoaded
 				},
 				() => 
 				{
+					addLog('hCaptcha script failed to load');
 					debugInfo.scriptsLoaded.hcaptcha = false;
 					showStatus('error', 'не удалось загрузить hcaptcha скрипт. возможно заблокирован в webview.');
 				},
@@ -582,19 +633,27 @@
 
 		function hcaptchaLoaded() 
 		{
+			addLog('hcaptchaLoaded callback called');
 			const container = document.querySelector('.h-captcha');
+			addLog(`hCaptcha container found: ${container ? 'yes' : 'no'}`);
+			addLog(`window.hcaptcha exists: ${window.hcaptcha ? 'yes' : 'no'}`);
+			
 			if (container && window.hcaptcha) 
 			{
 				try 
 				{
+					addLog('Rendering hCaptcha widget...');
 					window.hcaptcha.render(container);
+					addLog('hCaptcha widget rendered successfully');
 					hideStatus();
 				} catch (e) 
 				{
+					addLog(`hCaptcha render error: ${e.message}`);
 					showStatus('error', `hcaptcha render error: ${e.message}`);
 				}
 			} else 
 			{
+				addLog('hCaptcha render failed - missing container or hcaptcha object');
 				showStatus('error', 'hcaptcha загружен, но не найден контейнер или объект hcaptcha');
 			}
 		}
@@ -618,6 +677,7 @@
 		} else if (isVK) 
 		{
 			platform = 'vk';
+			addLog('Starting VK initialization...');
 
 			(async () => 
 			{
@@ -627,16 +687,24 @@
 					if (debugInfo.isWebView) 
 					{
 						showStatus('loading', 'проверяем webview совместимость...');
+						addLog('Checking WebView compatibility...');
 						await checkCSPAndScriptBlocking();
 					}
 
+					addLog('Initializing VK Bridge...');
 					await vkBridge.send('VKWebAppInit');
+					addLog('VK Bridge initialized successfully');
+
+					addLog('Getting launch params...');
 					const launchParams = await vkBridge.send('VKWebAppGetLaunchParams');
 					rawData = encodeURIComponent(JSON.stringify(launchParams));
+					addLog('Launch params received');
 
+					addLog('Getting config...');
 					const config = await vkBridge.send('VKWebAppGetConfig');
 					theme = config.scheme?.includes('dark') ? 'dark' : 'light';
 					applyTheme(theme);
+					addLog(`Config received, theme: ${theme}`);
 
 					vkBridge.subscribe(e => 
 					{
@@ -646,23 +714,31 @@
 							const newTheme = newScheme.includes('dark') ? 'dark' : 'light';
 							theme = newTheme;
 							applyTheme(theme);
+							addLog(`Theme changed to: ${newTheme}`);
 							insertVKCaptcha();
 						}
 					});
 
+					addLog('About to insert VK captcha...');
+					
 					// специальная обработка для webview
 					if (debugInfo.isWebView && debugInfo.cspBlocked) 
 					{
 						showStatus('error', 'webview блокирует внешние скрипты. капча может не работать.\n\nрекомендуем открыть приложение в браузере.');
 						// попробуем всё равно загрузить, возможно сработает
-						setTimeout(() => insertVKCaptcha(), 2000);
+						setTimeout(() => 
+						{
+							addLog('Delayed captcha insert due to CSP block');
+							insertVKCaptcha();
+						}, 2000);
 					} else 
 					{
+						addLog('Inserting VK captcha immediately');
 						insertVKCaptcha();
 					}
 				} catch (err) 
 				{
-					console.error('[VK] ошибка инициализации:', err);
+					addLog(`VK init error: ${err.toString()}`);
 					const errorMessage = `VK init failed: ${err.toString()}\n\n${showDebugInfo()}`;
 					showStatus('error', errorMessage);
 				}
