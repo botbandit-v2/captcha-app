@@ -156,8 +156,8 @@
 	<div class="captcha-wrapper">
 		<div id="captcha-container"></div>
 		<div id="status-indicator" class="status-indicator status-hidden"></div>
-		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
-		<div class="version-watermark" onclick="showStatus('error', showDebugInfo())">v1.1.16d</div>
+		<button id="copy-button" class="copy-button status-hidden">копировать</button>
+		<div class="version-watermark" onclick="showStatus('error', showDebugInfo())">v1.2</div>
 	</div>
 
 	<script>
@@ -306,13 +306,13 @@
 					button.classList.add('copied');
 
 					setTimeout(() => {
-						button.textContent = 'копировать текст ошибки';
+						button.textContent = 'копировать';
 						button.classList.remove('copied');
 					}, 2000);
 				} catch (err2) {
 					button.textContent = 'ошибка';
 					setTimeout(() => {
-						button.textContent = 'копировать текст ошибки';
+						button.textContent = 'копировать';
 					}, 2000);
 				}
 
@@ -921,7 +921,7 @@
 				try { data = JSON.parse(text); } catch (_) {}
 
 				if (res.ok && data && data.success) {
-					showStatus('success', 'проверка пройдена! приложение закрывается...');
+					showStatus('success', 'проверка пройдена! можно закрыть это окно.');
 					setTimeout(() => {
 						if (platform === 'tg') {
 							window.Telegram.WebApp.sendData('verified');
