@@ -189,7 +189,7 @@
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
 		<button id="debug-button" class="debug-button" onclick="showStatus('error', showDebugInfo())">показать отладочную информацию</button>
 		<button id="test-hcaptcha-button" class="test-button" onclick="testHCaptcha()">тест hcaptcha</button>
-		<div class="version-watermark">v1.1.9d</div>
+		<div class="version-watermark">v1.1.10d</div>
 	</div>
 
 	<script>
@@ -535,6 +535,29 @@
 					{
 						debugInfo.scriptsLoaded.turnstile = true;
 						activeCaptchaType = 'turnstile';
+						
+						// принудительно рендерим turnstile виджет для telegram
+						setTimeout(() => 
+						{
+							addLog('Attempting to render Turnstile widget for Telegram...');
+							if (window.turnstile && window.turnstile.render) 
+							{
+								const container = document.querySelector('.cf-turnstile');
+								if (container) 
+								{
+									try 
+									{
+										addLog('Rendering Turnstile widget with API...');
+										window.turnstile.render(container);
+										addLog('Turnstile widget rendered successfully');
+									} catch (e) 
+									{
+										addLog(`Turnstile render error: ${e.message}`);
+									}
+								}
+							}
+						}, 100);
+						
 						hideStatus();
 					},
 					() => 
@@ -589,6 +612,67 @@
 						addLog('Turnstile script loaded successfully');
 						debugInfo.scriptsLoaded.turnstile = true;
 						activeCaptchaType = 'turnstile';
+						
+						// принудительно рендерим turnstile виджет (особенно для iOS WebView)
+						setTimeout(() => 
+						{
+							addLog('Attempting to render Turnstile widget...');
+							if (window.turnstile && window.turnstile.render) 
+							{
+								const container = document.querySelector('.cf-turnstile');
+								if (container) 
+								{
+									try 
+									{
+										addLog('Rendering Turnstile widget with API...');
+										window.turnstile.render(container);
+										addLog('Turnstile widget rendered successfully');
+									} catch (e) 
+									{
+										addLog(`Turnstile render error: ${e.message}`);
+										// если turnstile не рендерится на iOS, переключаемся на hCaptcha
+										if (debugInfo.isIOS) 
+										{
+											addLog('Switching to hCaptcha due to iOS Turnstile render failure');
+											setTimeout(() => insertVKHCaptcha(), 500);
+										}
+									}
+								} else 
+								{
+									addLog('Turnstile container not found');
+									// если контейнер не найден на iOS, переключаемся на hCaptcha
+									if (debugInfo.isIOS) 
+									{
+										addLog('Switching to hCaptcha due to missing Turnstile container on iOS');
+										setTimeout(() => insertVKHCaptcha(), 500);
+									}
+								}
+							} else 
+							{
+								addLog('Turnstile API not available for manual render');
+								// если API недоступен на iOS, переключаемся на hCaptcha
+								if (debugInfo.isIOS) 
+								{
+									addLog('Switching to hCaptcha due to unavailable Turnstile API on iOS');
+									setTimeout(() => insertVKHCaptcha(), 500);
+								}
+							}
+						}, 100);
+						
+						// дополнительная проверка через 2 секунды - рендерился ли виджет
+						setTimeout(() => 
+						{
+							const widget = document.querySelector('.cf-turnstile iframe');
+							if (!widget && debugInfo.isIOS) 
+							{
+								addLog('Turnstile widget not rendered after 2 seconds on iOS, switching to hCaptcha');
+								insertVKHCaptcha();
+							} else if (widget) 
+							{
+								addLog('Turnstile widget successfully rendered');
+							}
+						}, 2000);
+						
 						hideStatus();
 					},
 					() => 
