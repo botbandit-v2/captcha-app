@@ -47,7 +47,17 @@
 			font-size: 10px;
 			color: rgba(128, 128, 128, 0.5);
 			font-family: monospace;
-			pointer-events: none;
+			cursor: pointer;
+			transition: color 0.2s ease;
+			user-select: none;
+		}
+
+		.version-watermark:hover {
+			color: rgba(128, 128, 128, 0.8);
+		}
+
+		.version-watermark:active {
+			color: rgba(128, 128, 128, 1);
 		}
 
 		.status-indicator {
@@ -139,46 +149,6 @@
 			margin: 0;
 			padding: 0;
 		}
-
-		.debug-button {
-			background: rgba(108, 117, 125, 0.1);
-			color: #6c757d;
-			border: 1px solid rgba(108, 117, 125, 0.3);
-			border-radius: 6px;
-			padding: 8px 12px;
-			font-size: 10px;
-			cursor: pointer;
-			font-family: monospace;
-			margin-top: 8px;
-			text-align: center;
-			transition: all 0.2s ease;
-		}
-
-		.debug-button:hover {
-			background: rgba(108, 117, 125, 0.2);
-		}
-
-		.debug-button:active {
-			background: rgba(108, 117, 125, 0.3);
-		}
-
-		.test-button {
-			background: rgba(255, 193, 7, 0.1);
-			color: #ffc107;
-			border: 1px solid rgba(255, 193, 7, 0.3);
-			border-radius: 6px;
-			padding: 8px 12px;
-			font-size: 10px;
-			cursor: pointer;
-			font-family: monospace;
-			margin-top: 4px;
-			text-align: center;
-			transition: all 0.2s ease;
-		}
-
-		.test-button:hover {
-			background: rgba(255, 193, 7, 0.2);
-		}
 	</style>
 </head>
 
@@ -187,9 +157,7 @@
 		<div id="captcha-container"></div>
 		<div id="status-indicator" class="status-indicator status-hidden"></div>
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
-		<button id="debug-button" class="debug-button" onclick="showStatus('error', showDebugInfo())">показать отладочную информацию</button>
-		<button id="test-hcaptcha-button" class="test-button" onclick="testHCaptcha()">тест hcaptcha</button>
-		<div class="version-watermark">v1.1.15d</div>
+		<div class="version-watermark" onclick="showStatus('error', showDebugInfo())">v1.1.16d</div>
 	</div>
 
 	<script>
@@ -483,14 +451,6 @@
 			
 			addLog(`VK params from URL: ${Object.keys(vkParams).length} parameters found`);
 			return vkParams;
-		}
-
-		// функция для принудительного тестирования hCaptcha
-		function testHCaptcha() 
-		{
-			showStatus('loading', 'принудительно загружаем hcaptcha...');
-			hideStatus();
-			insertVKHCaptcha();
 		}
 
 		// начальный лог
