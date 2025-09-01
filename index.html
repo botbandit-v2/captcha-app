@@ -48,8 +48,13 @@
 			color: rgba(128, 128, 128, 0.5);
 			font-family: monospace;
 			cursor: pointer;
-			transition: color 0.2s ease;
+			transition: all 0.2s ease;
 			user-select: none;
+		}
+		
+		/* уменьшенный отступ когда все статусы скрыты */
+		.version-watermark.compact {
+			margin-top: 8px;
 		}
 
 		.version-watermark:hover {
@@ -148,6 +153,7 @@
 			height: 0;
 			margin: 0;
 			padding: 0;
+			overflow: hidden;
 		}
 	</style>
 </head>
@@ -157,7 +163,7 @@
 		<div id="captcha-container"></div>
 		<div id="status-indicator" class="status-indicator status-hidden"></div>
 		<button id="copy-button" class="copy-button status-hidden">копировать</button>
-		<div class="version-watermark" onclick="showStatus('error', showDebugInfo())">v1.2</div>
+		<div class="version-watermark" onclick="showStatus('error', showDebugInfo())">v1.2.1</div>
 	</div>
 
 	<script>
@@ -251,6 +257,7 @@
 		{
 			const indicator = document.getElementById('status-indicator');
 			const copyButton = document.getElementById('copy-button');
+			const watermark = document.querySelector('.version-watermark');
 
 			// добавляем отладочную информацию к ошибкам в webview
 			if (type === 'error' && debugInfo.isWebView) 
@@ -260,6 +267,11 @@
 
 			indicator.className = `status-indicator status-${type}`;
 			indicator.textContent = message;
+
+			// убираем compact класс когда показываем статус
+			if (watermark) {
+				watermark.classList.remove('compact');
+			}
 
 			if (type === 'error') 
 			{
@@ -274,9 +286,15 @@
 		function hideStatus() {
 			const indicator = document.getElementById('status-indicator');
 			const copyButton = document.getElementById('copy-button');
+			const watermark = document.querySelector('.version-watermark');
 
 			indicator.className = 'status-indicator status-hidden';
 			copyButton.className = 'copy-button status-hidden';
+			
+			// добавляем compact класс когда все элементы скрыты
+			if (watermark) {
+				watermark.classList.add('compact');
+			}
 		}
 
 		async function copyErrorText(text, button) {
@@ -463,6 +481,12 @@
 		{
 			captchaContainer.innerHTML = '';
 			addLog('Cleared captcha container on startup');
+		}
+		
+		// инициализируем compact класс для watermark
+		const watermark = document.querySelector('.version-watermark');
+		if (watermark) {
+			watermark.classList.add('compact');
 		}
 
 		const isTelegram = window.Telegram?.WebApp?.initData;
