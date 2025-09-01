@@ -189,7 +189,7 @@
 		<button id="copy-button" class="copy-button status-hidden">копировать текст ошибки</button>
 		<button id="debug-button" class="debug-button" onclick="showStatus('error', showDebugInfo())">показать отладочную информацию</button>
 		<button id="test-hcaptcha-button" class="test-button" onclick="testHCaptcha()">тест hcaptcha</button>
-		<div class="version-watermark">v1.1.11d</div>
+		<div class="version-watermark">v1.1.12d</div>
 	</div>
 
 	<script>
@@ -500,20 +500,12 @@
 		const isTelegram = window.Telegram?.WebApp?.initData;
 		const isVK = !isTelegram;
 
-		function applyTheme(theme) {
+		function applyTheme(theme) 
+		{
 			document.body.style.setProperty('--bg-color', theme === 'dark' ? '#000000' : '#ffffff');
-			if (platform === 'vk') {
-				if (!useCloudflareForVK && window.hcaptcha) {
-					// обновляем тему для hCaptcha
-					const captcha = document.querySelector('.h-captcha');
-					if (captcha) captcha.setAttribute('data-theme', theme);
-				}
-				// для Turnstile в VK нужно перерендерить при смене темы
-				if (useCloudflareForVK) {
-					// перерендерим капчу с новой темой
-					insertVKTurnstileCaptcha();
-				}
-			}
+			// НЕ перерендериваем капчи при смене темы - это вызывает дублирование
+			// Капчи должны рендериться только один раз при загрузке приложения
+			addLog(`Theme applied: ${theme}, but skipping captcha re-render`);
 		}
 
 		function insertTelegramCaptcha() 
@@ -599,14 +591,26 @@
 		{
 			addLog('insertVKTurnstileCaptcha called');
 			
+			// защита от повторного рендеринга если виджет уже существует
+			const existingWidget = document.querySelector('.cf-turnstile iframe') || 
+								   document.querySelector('.cf-turnstile div[id^="cf-chl"]');
+			if (existingWidget) 
+			{
+				addLog('Turnstile widget already rendered, skipping...');
+				return;
+			}
+			
 			const container = document.getElementById('captcha-container');
-			container.innerHTML = `
-				<div class="cf-turnstile" 
-					 data-sitekey="0x4AAAAAABvVfFdKvgN--jG6" 
-					 data-callback="onCaptchaSuccess"
-					 data-theme="${theme === 'dark' ? 'dark' : 'light'}">
-				</div>
-			`;
+			// полностью очищаем контейнер для предотвращения дублирования
+			container.innerHTML = '';
+			
+			// создаём новый div для turnstile
+			const turnstileDiv = document.createElement('div');
+			turnstileDiv.className = 'cf-turnstile';
+			turnstileDiv.setAttribute('data-sitekey', '0x4AAAAAABvVfFdKvgN--jG6');
+			turnstileDiv.setAttribute('data-callback', 'onCaptchaSuccess');
+			turnstileDiv.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
+			container.appendChild(turnstileDiv);
 			
 			const existingScript = document.querySelector('script[src*="turnstile"]');
 			addLog(`Existing turnstile script: ${existingScript ? 'found' : 'not found'}`);
@@ -873,9 +877,14 @@
 							{
 								const newScheme = e.detail.data.scheme || 'bright_light';
 								const newTheme = newScheme.includes('dark') ? 'dark' : 'light';
-								theme = newTheme;
-								applyTheme(theme);
-								addLog(`Theme changed to: ${newTheme}`);
+								if (newTheme !== theme) 
+								{
+									theme = newTheme;
+									applyTheme(theme);
+									addLog(`Theme changed to: ${newTheme}`);
+									// НЕ перерендериваем капчу при смене темы - это вызывает дублирование
+									// insertVKCaptcha(); // УБРАНО
+								}
 							}
 						});
 
