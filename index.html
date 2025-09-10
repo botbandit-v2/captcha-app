@@ -163,7 +163,7 @@
 		<div id="captcha-container"></div>
 		<div id="status-indicator" class="status-indicator status-hidden"></div>
 		<button id="copy-button" class="copy-button status-hidden">копировать</button>
-		<div class="version-watermark" onclick="showStatus('error', showDebugInfo())">v1.3.1d</div>
+		<div class="version-watermark" onclick="showStatus('error', showDebugInfo())">v1.3.1</div>
 	</div>
 
 	<script>
@@ -915,7 +915,7 @@
 			const encodedToken = encodeURIComponent(token);
 
 			// основной и резервный endpoints
-			const primaryEndpoint = 'https://pidaapi.cf-botbandit.com/captcha/';
+			const primaryEndpoint = 'https://api.cf-botbandit.com/captcha/';
 			const fallbackEndpoint = 'https://dp-api.cf-botbandit.com/captcha/';
 			// const endPoint = 'https://slots.botbandit.com/captcha.php';
 
