@@ -163,7 +163,7 @@
 		<div id="captcha-container"></div>
 		<div id="status-indicator" class="status-indicator status-hidden"></div>
 		<button id="copy-button" class="copy-button status-hidden">копировать</button>
-		<div class="version-watermark" onclick="showStatus('error', showDebugInfo())">v1.2.1</div>
+		<div class="version-watermark" onclick="showStatus('error', showDebugInfo())">v1.3.0d</div>
 	</div>
 
 	<script>
@@ -900,10 +900,12 @@
 			})();
 		}
 
-		async function onCaptchaSuccess(token) {
+		async function onCaptchaSuccess(token) 
+		{
 			addLog(`onCaptchaSuccess called with token: ${token ? token.substring(0, 20) + '...' : 'null'}`);
 			
-			if (submitting) {
+			if (submitting) 
+			{
 				addLog('Already submitting, skipping duplicate');
 				return; // не шлём дубли
 			}
@@ -912,59 +914,112 @@
 			showStatus('loading', 'проверяем капчу...');
 			const encodedToken = encodeURIComponent(token);
 
-			const endPoint = 'https://api.cf-botbandit.com/captcha/';
+			// основной и резервный endpoints
+			const primaryEndpoint = 'https://api.cf-botbandit.com/captcha/';
+			const fallbackEndpoint = 'https://dp-api.cf-botbandit.com/captcha/';
 			// const endPoint = 'https://slots.botbandit.com/captcha.php';
 
-			const url = `${endPoint}?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}&captchaType=${activeCaptchaType}`;
-			
-			addLog(`Sending request with captcha type: ${activeCaptchaType}`);
-
-			try {
-				showStatus('loading', 'загрузка...');
+			const tryEndpoint = async (endpoint, isFallback = false) => 
+			{
+				const url = `${endpoint}?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}&captchaType=${activeCaptchaType}`;
+				
+				addLog(`Trying ${isFallback ? 'fallback' : 'primary'} endpoint: ${endpoint}`);
+				
+				if (isFallback) 
+				{
+					showStatus('loading', 'пробуем резервный сервер...');
+				}
 
 				const controller = new AbortController();
-				const timeoutId = setTimeout(() => {
+				const timeoutId = setTimeout(() => 
+				{
 					controller.abort();
-					showStatus('error', 'превышено время ожидания ответа от сервера (30 сек)');
-					submitting = false;
-				}, 30000);
+				}, 15000); // уменьшили таймаут до 15 сек для более быстрого переключения
 
-				const res = await fetch(url, {
-					signal: controller.signal,
-					method: 'GET',
-					mode: 'cors',
-					headers: { 'Accept': 'application/json, text/plain;q=0.9, */*;q=0.8' },
-					cache: 'no-store'
-				});
+				try 
+				{
+					const res = await fetch(url, {
+						signal: controller.signal,
+						method: 'GET',
+						mode: 'cors',
+						headers: { 'Accept': 'application/json, text/plain;q=0.9, */*;q=0.8' },
+						cache: 'no-store'
+					});
 
-				clearTimeout(timeoutId);
+					clearTimeout(timeoutId);
+
+					const text = await res.text();
+					let data = null;
+					try { data = JSON.parse(text); } catch (_) {}
+
+					return { success: res.ok && data && data.success, data, text, status: res.status, url };
+				} catch (e) 
+				{
+					clearTimeout(timeoutId);
+					addLog(`Request to ${endpoint} failed: ${e.message}`);
+					throw e;
+				}
+			};
+
+			try 
+			{
+				showStatus('loading', 'загрузка...');
+				
+				let result;
+				
+				// сначала пробуем основной endpoint
+				try 
+				{
+					result = await tryEndpoint(primaryEndpoint, false);
+				} catch (primaryError) 
+				{
+					addLog(`Primary endpoint failed: ${primaryError.message}`);
+					// если основной не работает, пробуем резервный
+					try 
+					{
+						result = await tryEndpoint(fallbackEndpoint, true);
+					} catch (fallbackError) 
+					{
+						addLog(`Fallback endpoint also failed: ${fallbackError.message}`);
+						throw new Error(`оба сервера недоступны. основной: ${primaryError.message}, резервный: ${fallbackError.message}`);
+					}
+				}
+
 				showStatus('loading', 'обработка...');
 
-				const text = await res.text();
-				let data = null;
-				try { data = JSON.parse(text); } catch (_) {}
-
-				if (res.ok && data && data.success) {
+				if (result.success) 
+				{
 					showStatus('success', 'проверка пройдена! можно закрыть это окно.');
-					setTimeout(() => {
-						if (platform === 'tg') {
+					setTimeout(() => 
+					{
+						if (platform === 'tg') 
+						{
 							window.Telegram.WebApp.sendData('verified');
 							setTimeout(() => { window.Telegram.WebApp.close(); }, 50);
-						} else if (platform === 'vk') {
+						} else if (platform === 'vk') 
+						{
 							vkBridge.send('VKWebAppClose', { status: 'success' });
 						}
 					}, 50);
-				} else {
-					showStatus('error', (data ? JSON.stringify(data, null, 2) : (text || `HTTP ${res.status}`)) + `\n\nплатформа: ${platform}\nurl: ${url}`);
+				} else 
+				{
+					showStatus('error', (result.data ? JSON.stringify(result.data, null, 2) : (result.text || `HTTP ${result.status}`)) + `\n\nплатформа: ${platform}\nurl: ${result.url}`);
 					if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
 					if (window.turnstile && platform === 'tg') window.turnstile.reset();
 					// небольшая пауза, чтобы Cloudflare/Google не засчитал дубликат
 					setTimeout(() => { submitting = false; }, 400);
 					return;
 				}
-			} catch (e) {
-				if (e.name === 'AbortError') return; // таймаут уже показали
-				showStatus('error', `ошибка сети: ${String(e)}\n\nплатформа: ${platform}\nurl: ${url}`);
+			} catch (e) 
+			{
+				if (e.name === 'AbortError') 
+				{
+					showStatus('error', 'превышено время ожидания ответа от серверов');
+				} else 
+				{
+					showStatus('error', `ошибка сети: ${String(e)}`);
+				}
+				
 				if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
 				if (window.turnstile && platform === 'tg') window.turnstile.reset();
 				setTimeout(() => { submitting = false; }, 400);
