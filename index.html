@@ -163,7 +163,7 @@
 		<div id="captcha-container"></div>
 		<div id="status-indicator" class="status-indicator status-hidden"></div>
 		<button id="copy-button" class="copy-button status-hidden">копировать</button>
-		<div class="version-watermark" onclick="showStatus('error', showDebugInfo())">v1.3.1</div>
+		<div class="version-watermark" onclick="showStatus('error', showDebugInfo())">v1.4.0d</div>
 	</div>
 
 	<script>
@@ -184,10 +184,11 @@
 			userAgent: navigator.userAgent,
 			isWebView: /wv/.test(navigator.userAgent) || /WebView/.test(navigator.userAgent) || 
 					   (window.navigator.standalone === false && /Mobile/.test(navigator.userAgent)),
-			isVKApp: /VKApp/.test(navigator.userAgent) || window.vkBridge !== undefined,
+			isVKApp: /VKApp/.test(navigator.userAgent) && !window.Telegram?.WebApp?.initData,
+			isTelegramApp: /Telegram/.test(navigator.userAgent) || !!window.Telegram?.WebApp?.initData,
 			isAndroid: /Android/.test(navigator.userAgent),
 			isIOS: /iPhone|iPad|iPod/.test(navigator.userAgent),
-			platform: window.location.href.includes('vk.com') ? 'vk' : 'unknown',
+			platform: window.location.href.includes('vk.com') ? 'vk' : (window.Telegram?.WebApp?.initData ? 'telegram' : 'unknown'),
 			location: window.location.href,
 			referrer: document.referrer,
 			windowFeatures: {
@@ -234,8 +235,10 @@
 				`referrer: ${debugInfo.referrer}`,
 				`webview: ${debugInfo.isWebView}`,
 				`vk app: ${debugInfo.isVKApp}`,
+				`telegram app: ${debugInfo.isTelegramApp}`,
 				`android: ${debugInfo.isAndroid}`,
 				`ios: ${debugInfo.isIOS}`,
+				`platform detected: ${debugInfo.platform}`,
 				`window: ${debugInfo.windowFeatures.width}x${debugInfo.windowFeatures.height}`,
 				`dpr: ${debugInfo.windowFeatures.devicePixelRatio}`,
 				`scripts loaded: turnstile=${debugInfo.scriptsLoaded.turnstile}, hcaptcha=${debugInfo.scriptsLoaded.hcaptcha}`,
@@ -533,29 +536,119 @@
 									try 
 									{
 										addLog('Rendering Turnstile widget with API for Telegram...');
-										window.turnstile.render(container, {
+										const widgetId = window.turnstile.render(container, {
 											sitekey: '0x4AAAAAABvVfFdKvgN--jG6',
 											callback: onCaptchaSuccess,
 											theme: theme === 'dark' ? 'dark' : 'light'
 										});
-										addLog('Turnstile widget rendered successfully');
+										addLog(`Turnstile render call completed, widget ID: ${widgetId}`);
+										
+										// дополнительная проверка через 2 секунды - реально ли отобразился виджет
+										setTimeout(() => 
+										{
+											const iframe = container.querySelector('iframe');
+											const widgetDiv = container.querySelector('div[data-sitekey]');
+											const hasVisibleContent = iframe || widgetDiv;
+											
+											addLog(`Turnstile visual check: iframe=${!!iframe}, widgetDiv=${!!widgetDiv}, hasContent=${hasVisibleContent}`);
+											
+											if (!hasVisibleContent) 
+											{
+												addLog('Turnstile widget not visually rendered in Telegram, switching to hCaptcha');
+												debugInfo.errors.push('Turnstile widget not visually rendered');
+												container.innerHTML = '';
+												insertTelegramHCaptcha();
+											} else 
+											{
+												addLog('Turnstile widget successfully rendered and visible');
+												hideStatus();
+											}
+										}, 2000);
 									} catch (e) 
 									{
 										addLog(`Turnstile render error: ${e.message}`);
+										debugInfo.errors.push(`Turnstile render error: ${e.message}`);
+										container.innerHTML = '';
+										insertTelegramHCaptcha();
 									}
+								} else 
+								{
+									addLog('Turnstile container not found');
+									insertTelegramHCaptcha();
 								}
+							} else 
+							{
+								addLog('Turnstile API not available');
+								insertTelegramHCaptcha();
 							}
 						}, 100);
-						
-						hideStatus();
 					},
 					() => 
 					{
 						debugInfo.scriptsLoaded.turnstile = false;
-						showStatus('error', 'не удалось загрузить turnstile скрипт. возможно заблокирован в webview.');
+						addLog('Turnstile script failed to load, switching to hCaptcha');
+						insertTelegramHCaptcha();
 					},
 					'turnstile'
 				);
+			} else 
+			{
+				addLog('Turnstile script already loaded, attempting direct render');
+				hideStatus();
+			}
+		}
+		
+		function insertTelegramHCaptcha() 
+		{
+			addLog('insertTelegramHCaptcha called');
+			const container = document.getElementById('captcha-container');
+			container.innerHTML = `
+        <div class="h-captcha" 
+             data-sitekey="5ae63666-6d46-47b0-ad48-a96829a83a7a" 
+             data-callback="onCaptchaSuccess" 
+             data-theme="${theme}">
+        </div>`;
+
+			showStatus('loading', 'загружается hcaptcha для telegram...');
+			loadScriptWithFallback(
+				'https://hcaptcha.com/1/api.js?hl=ru&onload=hcaptchaLoadedTelegram',
+				() => 
+				{
+					addLog('hCaptcha script loaded successfully for Telegram');
+					debugInfo.scriptsLoaded.hcaptcha = true;
+					activeCaptchaType = 'hcaptcha';
+				},
+				() => 
+				{
+					addLog('hCaptcha script failed to load for Telegram');
+					debugInfo.scriptsLoaded.hcaptcha = false;
+					showStatus('error', 'не удалось загрузить hcaptcha скрипт. проблемы с сетью или блокировка.');
+				},
+				'hcaptcha'
+			);
+		}
+		
+		function hcaptchaLoadedTelegram() 
+		{
+			addLog('hcaptchaLoadedTelegram callback called');
+			const container = document.querySelector('.h-captcha');
+			if (container && window.hcaptcha) 
+			{
+				try 
+				{
+					addLog('Rendering hCaptcha widget for Telegram...');
+					window.hcaptcha.render(container);
+					addLog('hCaptcha widget rendered successfully for Telegram');
+					hideStatus();
+				} catch (e) 
+				{
+					addLog(`hCaptcha render error for Telegram: ${e.message}`);
+					showStatus('error', `hcaptcha render error: ${e.message}`);
+				}
+			} else 
+			{
+				addLog('hCaptcha render failed for Telegram - missing container or hcaptcha object');
+				showStatus('error', 'hcaptcha загружен, но не найден контейнер или объект hcaptcha');
 			}
 		}
 
