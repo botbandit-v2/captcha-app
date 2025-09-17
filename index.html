@@ -174,6 +174,8 @@
 		let activeCaptchaType = 'unknown'; // отслеживаем какой виджет капчи загружен
 		let captchaInitialized = false; // защита от повторной инициализации
 		let captchaRenderTimeout = null; // таймаут для проверки рендеринга
+		let turnstileSuccessfullyRendered = false; // флаг успешного рендера turnstile
+		let turnstileVisualCheckTimeout = null; // таймаут для визуальной проверки
 		
 		// переключатель капчи для VK: true = Turnstile, false = hCaptcha
 		const useCloudflareForVK = true;
@@ -538,32 +540,77 @@
 										addLog('Rendering Turnstile widget with API for Telegram...');
 										const widgetId = window.turnstile.render(container, {
 											sitekey: '0x4AAAAAABvVfFdKvgN--jG6',
-											callback: onCaptchaSuccess,
+											callback: (token) => {
+												turnstileSuccessfullyRendered = true;
+												addLog('Turnstile callback triggered - widget confirmed working');
+												// отменяем проверку таймаута если callback сработал
+												if (turnstileVisualCheckTimeout) {
+													clearTimeout(turnstileVisualCheckTimeout);
+													turnstileVisualCheckTimeout = null;
+													addLog('Visual check timeout cancelled due to successful callback');
+												}
+												onCaptchaSuccess(token);
+											},
 											theme: theme === 'dark' ? 'dark' : 'light'
 										});
 										addLog(`Turnstile render call completed, widget ID: ${widgetId}`);
 										
-										// дополнительная проверка через 2 секунды - реально ли отобразился виджет
-										setTimeout(() => 
+										// дополнительная проверка через 3 секунды - реально ли отобразился виджет
+										turnstileVisualCheckTimeout = setTimeout(() => 
 										{
+											// более широкий поиск элементов Turnstile
 											const iframe = container.querySelector('iframe');
 											const widgetDiv = container.querySelector('div[data-sitekey]');
-											const hasVisibleContent = iframe || widgetDiv;
+											const cfTurnstileDiv = container.querySelector('.cf-turnstile');
+											const anyTurnstileElement = container.querySelector('div[id*="turnstile"], div[class*="turnstile"], iframe[src*="cloudflare"]');
+											const containerHasChildren = container.children.length > 1; // больше чем просто наш div
 											
-											addLog(`Turnstile visual check: iframe=${!!iframe}, widgetDiv=${!!widgetDiv}, hasContent=${hasVisibleContent}`);
+											// получаем детальную информацию о содержимом контейнера
+											const containerHTML = container.innerHTML;
+											const containerChildrenInfo = Array.from(container.children).map(child => ({
+												tagName: child.tagName,
+												className: child.className,
+												id: child.id,
+												hasChildren: child.children.length > 0
+											}));
 											
-											if (!hasVisibleContent) 
+											addLog(`Turnstile visual check details:`);
+											addLog(`- iframe: ${!!iframe}`);
+											addLog(`- widgetDiv: ${!!widgetDiv}`);
+											addLog(`- cfTurnstileDiv: ${!!cfTurnstileDiv}`);
+											addLog(`- anyTurnstileElement: ${!!anyTurnstileElement}`);
+											addLog(`- containerHasChildren: ${containerHasChildren}`);
+											addLog(`- container children count: ${container.children.length}`);
+											addLog(`- children info: ${JSON.stringify(containerChildrenInfo)}`);
+											
+											// более гибкие условия для определения успешного рендера
+											const hasVisibleContent = iframe || widgetDiv || cfTurnstileDiv || anyTurnstileElement || containerHasChildren;
+											
+											// дополнительная проверка - есть ли в HTML что-то похожее на turnstile
+											const htmlHasTurnstileContent = containerHTML.includes('turnstile') || 
+																		   containerHTML.includes('cloudflare') || 
+																		   containerHTML.includes('iframe') ||
+																		   containerHTML.length > 100; // если много контента, скорее всего виджет загрузился
+											
+											const finalCheck = hasVisibleContent || htmlHasTurnstileContent || turnstileSuccessfullyRendered;
+											
+											addLog(`Final render check: hasVisibleContent=${hasVisibleContent}, htmlHasTurnstileContent=${htmlHasTurnstileContent}, callbackTriggered=${turnstileSuccessfullyRendered}, finalCheck=${finalCheck}`);
+											
+											if (!finalCheck) 
 											{
 												addLog('Turnstile widget not visually rendered in Telegram, switching to hCaptcha');
+												addLog(`Container HTML was: ${containerHTML.substring(0, 200)}...`);
 												debugInfo.errors.push('Turnstile widget not visually rendered');
 												container.innerHTML = '';
+												turnstileSuccessfullyRendered = false; // сброс флага
 												insertTelegramHCaptcha();
 											} else 
 											{
 												addLog('Turnstile widget successfully rendered and visible');
 												hideStatus();
 											}
-										}, 2000);
+											turnstileVisualCheckTimeout = null; // очищаем ссылку на таймаут
+										}, 3000);
 									} catch (e) 
 									{
 										addLog(`Turnstile render error: ${e.message}`);
