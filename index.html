@@ -163,7 +163,7 @@
 		<div id="captcha-container"></div>
 		<div id="status-indicator" class="status-indicator status-hidden"></div>
 		<button id="copy-button" class="copy-button status-hidden">копировать</button>
-		<div class="version-watermark" onclick="showStatus('error', showDebugInfo())">v1.4.1d</div>
+		<div class="version-watermark" onclick="showStatus('error', showDebugInfo())">v1.4.2d</div>
 	</div>
 
 	<script>
@@ -1063,21 +1063,27 @@
 			{
 				const url = `${endpoint}?captcha=${encodedToken}&rawData=${rawData}&platform=${platform}&captchaType=${activeCaptchaType}`;
 				
-				addLog(`Trying ${isFallback ? 'fallback' : 'primary'} endpoint: ${endpoint}`);
+				addLog(`=== ${isFallback ? 'FALLBACK' : 'PRIMARY'} ENDPOINT ATTEMPT ===`);
+				addLog(`Endpoint: ${endpoint}`);
+				addLog(`Full URL: ${url.substring(0, 150)}...`);
+				addLog(`Platform: ${platform}, CaptchaType: ${activeCaptchaType}`);
 				
 				if (isFallback) 
 				{
 					showStatus('loading', 'пробуем резервный сервер...');
 				}
 
+				const startTime = Date.now();
 				const controller = new AbortController();
 				const timeoutId = setTimeout(() => 
 				{
+					addLog(`Request timeout after 15 seconds to ${endpoint}`);
 					controller.abort();
-				}, 15000); // уменьшили таймаут до 15 сек для более быстрого переключения
+				}, 15000);
 
 				try 
 				{
+					addLog(`Sending fetch request to ${endpoint}...`);
 					const res = await fetch(url, {
 						signal: controller.signal,
 						method: 'GET',
@@ -1087,16 +1093,78 @@
 					});
 
 					clearTimeout(timeoutId);
+					const responseTime = Date.now() - startTime;
+					
+					addLog(`Response received from ${endpoint} in ${responseTime}ms`);
+					addLog(`HTTP Status: ${res.status} ${res.statusText}`);
+					addLog(`Response headers: ${JSON.stringify(Object.fromEntries(res.headers.entries()))}`);
 
 					const text = await res.text();
+					addLog(`Response body length: ${text.length} characters`);
+					addLog(`Response body preview: ${text.substring(0, 200)}${text.length > 200 ? '...' : ''}`);
+					
 					let data = null;
-					try { data = JSON.parse(text); } catch (_) {}
+					let parseError = null;
+					try 
+					{ 
+						data = JSON.parse(text); 
+						addLog(`JSON parsing successful`);
+					} catch (e) 
+					{ 
+						parseError = e.message;
+						addLog(`JSON parsing failed: ${e.message}`);
+					}
 
-					return { success: res.ok && data && data.success, data, text, status: res.status, url };
+					const success = res.ok && data && data.success;
+					addLog(`Final success check: res.ok=${res.ok}, data=${!!data}, data.success=${data?.success}, final=${success}`);
+					
+					if (!res.ok) 
+					{
+						addLog(`HTTP error detected: ${res.status} ${res.statusText}`);
+					}
+					
+					if (data && !data.success) 
+					{
+						addLog(`Server returned success=false. Full data: ${JSON.stringify(data)}`);
+					}
+
+					const result = { 
+						success, 
+						data, 
+						text, 
+						status: res.status, 
+						statusText: res.statusText,
+						url,
+						responseTime,
+						parseError,
+						endpoint: isFallback ? 'fallback' : 'primary'
+					};
+					
+					addLog(`=== ${isFallback ? 'FALLBACK' : 'PRIMARY'} ENDPOINT ${success ? 'SUCCESS' : 'FAILED'} ===`);
+					return result;
 				} catch (e) 
 				{
 					clearTimeout(timeoutId);
-					addLog(`Request to ${endpoint} failed: ${e.message}`);
+					const responseTime = Date.now() - startTime;
+					
+					addLog(`=== ${isFallback ? 'FALLBACK' : 'PRIMARY'} ENDPOINT ERROR ===`);
+					addLog(`Error type: ${e.name}`);
+					addLog(`Error message: ${e.message}`);
+					addLog(`Error after: ${responseTime}ms`);
+					addLog(`Stack trace: ${e.stack?.substring(0, 300) || 'not available'}`);
+					
+					// детализируем тип ошибки
+					if (e.name === 'AbortError') 
+					{
+						addLog(`Request was aborted (timeout or manual cancellation)`);
+					} else if (e.name === 'TypeError' && e.message.includes('fetch')) 
+					{
+						addLog(`Network error: likely CORS, DNS, or connection issue`);
+					} else if (e.name === 'TypeError' && e.message.includes('NetworkError')) 
+					{
+						addLog(`Network error: connection failed or blocked`);
+					}
+					
 					throw e;
 				}
 			};
@@ -1104,46 +1172,106 @@
 			try 
 			{
 				showStatus('loading', 'загрузка...');
+				addLog(`\n=== CAPTCHA VERIFICATION STARTED ===`);
+				addLog(`Total endpoints to try: 2 (primary + fallback)`);
 				
 				let result;
+				let usedEndpoint = 'none';
 				
 				// сначала пробуем основной endpoint
 				try 
 				{
+					addLog(`\n--- Attempting PRIMARY endpoint ---`);
 					result = await tryEndpoint(primaryEndpoint, false);
+					usedEndpoint = 'primary';
+					addLog(`Primary endpoint completed successfully`);
 				} catch (primaryError) 
 				{
-					addLog(`Primary endpoint failed: ${primaryError.message}`);
+					addLog(`\n--- PRIMARY ENDPOINT FAILED ---`);
+					addLog(`Primary error: ${primaryError.name} - ${primaryError.message}`);
+					
 					// если основной не работает, пробуем резервный
 					try 
 					{
+						addLog(`\n--- Attempting FALLBACK endpoint ---`);
 						result = await tryEndpoint(fallbackEndpoint, true);
+						usedEndpoint = 'fallback';
+						addLog(`Fallback endpoint completed successfully`);
 					} catch (fallbackError) 
 					{
-						addLog(`Fallback endpoint also failed: ${fallbackError.message}`);
+						addLog(`\n--- FALLBACK ENDPOINT FAILED ---`);
+						addLog(`Fallback error: ${fallbackError.name} - ${fallbackError.message}`);
+						addLog(`\n=== ALL ENDPOINTS FAILED ===`);
+						
+						const detailedError = {
+							primary: {
+								endpoint: primaryEndpoint,
+								error: primaryError.message,
+								type: primaryError.name
+							},
+							fallback: {
+								endpoint: fallbackEndpoint,
+								error: fallbackError.message,
+								type: fallbackError.name
+							}
+						};
+						
+						addLog(`Detailed failure info: ${JSON.stringify(detailedError, null, 2)}`);
 						throw new Error(`оба сервера недоступны. основной: ${primaryError.message}, резервный: ${fallbackError.message}`);
 					}
 				}
 
+				addLog(`\n=== PROCESSING RESPONSE ===`);
+				addLog(`Used endpoint: ${usedEndpoint} (${result.endpoint})`);
+				addLog(`Response time: ${result.responseTime}ms`);
+				addLog(`HTTP status: ${result.status} ${result.statusText || ''}`);
+				addLog(`Success flag: ${result.success}`);
+				
 				showStatus('loading', 'обработка...');
 
 				if (result.success) 
 				{
+					addLog(`\n=== VERIFICATION SUCCESS ===`);
+					addLog(`Platform: ${platform}`);
+					addLog(`Final success with ${usedEndpoint} endpoint`);
+					
 					showStatus('success', 'проверка пройдена! можно закрыть это окно.');
 					setTimeout(() => 
 					{
 						if (platform === 'tg') 
 						{
+							addLog(`Sending data to Telegram and closing...`);
 							window.Telegram.WebApp.sendData('verified');
 							setTimeout(() => { window.Telegram.WebApp.close(); }, 50);
 						} else if (platform === 'vk') 
 						{
+							addLog(`Closing VK WebApp...`);
 							vkBridge.send('VKWebAppClose', { status: 'success' });
 						}
 					}, 50);
 				} else 
 				{
-					showStatus('error', (result.data ? JSON.stringify(result.data, null, 2) : (result.text || `HTTP ${result.status}`)) + `\n\nплатформа: ${platform}\nurl: ${result.url}`);
+					addLog(`\n=== VERIFICATION FAILED ===`);
+					addLog(`Response indicated failure despite HTTP success`);
+					addLog(`Data: ${JSON.stringify(result.data, null, 2)}`);
+					addLog(`Raw text: ${result.text}`);
+					
+					const errorDetails = [
+						`=== ДЕТАЛИ ОШИБКИ ВЕРИФИКАЦИИ ===`,
+						`Endpoint: ${usedEndpoint} (${result.url})`,
+						`HTTP Status: ${result.status} ${result.statusText || ''}`,
+						`Response Time: ${result.responseTime}ms`,
+						`Platform: ${platform}`,
+						`Captcha Type: ${activeCaptchaType}`,
+						`Parse Error: ${result.parseError || 'none'}`,
+						``,
+						`Response Data:`,
+						result.data ? JSON.stringify(result.data, null, 2) : (result.text || `HTTP ${result.status}`),
+						``,
+						`Full URL: ${result.url}`
+					].join('\n');
+					
+					showStatus('error', errorDetails);
 					if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
 					if (window.turnstile && platform === 'tg') window.turnstile.reset();
 					// небольшая пауза, чтобы Cloudflare/Google не засчитал дубликат
@@ -1152,13 +1280,27 @@
 				}
 			} catch (e) 
 			{
+				addLog(`\n=== CRITICAL ERROR ===`);
+				addLog(`Error type: ${e.name}`);
+				addLog(`Error message: ${e.message}`);
+				addLog(`Stack trace: ${e.stack?.substring(0, 500) || 'not available'}`);
+				
+				let userFriendlyError;
 				if (e.name === 'AbortError') 
 				{
-					showStatus('error', 'превышено время ожидания ответа от серверов');
+					userFriendlyError = 'превышено время ожидания ответа от серверов (15 сек)';
+					addLog(`User shown: timeout error`);
+				} else if (e.message.includes('оба сервера недоступны')) 
+				{
+					userFriendlyError = String(e.message);
+					addLog(`User shown: both servers failed`);
 				} else 
 				{
-					showStatus('error', `ошибка сети: ${String(e)}`);
+					userFriendlyError = `ошибка сети: ${String(e)}`;
+					addLog(`User shown: network error`);
 				}
+				
+				showStatus('error', userFriendlyError);
 				
 				if (window.hcaptcha && platform === 'vk') window.hcaptcha.reset();
 				if (window.turnstile && platform === 'tg') window.turnstile.reset();
